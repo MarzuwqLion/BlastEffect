@@ -153,6 +153,9 @@ export class Enemy {
     if (cfg.shield > 0) this.createShieldBubble();
   }
 
+  /** Tests: hold position and never attack. */
+  frozen = false;
+
   /** Extra multiplier on weak point hits (the boss raises it with intel). */
   weakPointBonus = 1;
 
@@ -551,6 +554,11 @@ export class Enemy {
   }
 
   protected updateAI(dt: number): void {
+    if (this.frozen) {
+      this.velocity.set(0, this.velocity.y, 0);
+      this.moveKinematic(dt, true);
+      return;
+    }
     const player = this.game.player;
     const pp = player.position;
     this.distToPlayer = Math.hypot(pp.x - this.position.x, pp.z - this.position.z);

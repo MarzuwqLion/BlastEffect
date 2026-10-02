@@ -458,6 +458,7 @@ export class Game {
     const simDt = this.state === 'paused' ? 0 : dt || (this.state === 'title' ? realDt : 0);
     this.avatar.object.position.copy(p.position);
     this.avatar.update(simDt, p.anim);
+    this.avatar.object.updateMatrixWorld(true);
     if (this.state !== 'title') {
       this.rig.update(this.state === 'paused' ? 0 : realDt, p.position, {
         aiming: p.aiming,
@@ -480,6 +481,22 @@ export class Game {
     if (!this.skipRender) this.renderer.render();
     this.debug.update(realDt);
     input.endFrame();
+  }
+
+  /** Debug/tests: point the camera at a world position. */
+  debugAimAt(x: number, y: number, z: number): void {
+    // Aim from the camera's current origin; iterate twice since the origin depends on the aim.
+    for (let i = 0; i < 3; i++) {
+      const o = this.rig.aimOrigin;
+      const dx = x - o.x;
+      const dy = y - o.y;
+      const dz = z - o.z;
+      this.rig.yaw = Math.atan2(-dx, -dz);
+      this.rig.pitch = Math.atan2(dy, Math.hypot(dx, dz));
+      this.rig.recoilPitch = 0;
+      this.rig.recoilYaw = 0;
+      this.rig.update(0, this.player.position, { aiming: this.player.aiming, scoped: this.player.scoped, sprinting: false, crouched: this.player.crouched });
+    }
   }
 
   /** Debug: renderables in the camera frustum grouped by kind/material (draw-call hunting). */
@@ -506,11 +523,12 @@ export class Game {
   /** Advance the game by `seconds` in fixed steps, rendering only the last frame. */
   simulate(seconds: number, dt = 1 / 60): void {
     const n = Math.max(1, Math.round(seconds / dt));
+    const keep = this.skipRender;
     for (let i = 0; i < n; i++) {
-      this.skipRender = i < n - 1;
+      this.skipRender = keep || i < n - 1;
       this.step(dt);
     }
-    this.skipRender = false;
+    this.skipRender = keep;
   }
 
   private titleCamera(dt: number): void {

@@ -687,9 +687,9 @@ export class FX {
   /** The combo: the biggest payoff in the game. */
   comboExplosion(center: THREE.Vector3, radius: number): void {
     // Core flash and light.
-    this.flash(center, radius * 1.4, 0.28, 0xfff2c0, this.glowTex);
-    this.flash(center, radius * 0.9, 0.18, 0xffffff, this.flashTex);
-    this.boom(center, 0x8af0ff, 120, 0.6);
+    this.flash(center, radius * 0.9, 0.22, 0x9fe8ff, this.glowTex);
+    this.flash(center, radius * 0.55, 0.14, 0xfff0c8, this.flashTex);
+    this.boom(center, 0x8af0ff, 70, 0.6);
     // Two shells: gold then turquoise.
     this.wave(center, radius, 0.42, 0xffcf6a);
     _v.copy(center);

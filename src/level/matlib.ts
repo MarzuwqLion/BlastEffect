@@ -38,7 +38,7 @@ export function createMaterials(caustics: boolean): Record<MatName, THREE.Materi
     blackGlass: levelMaterial({ color: 0x0a0c12, roughness: 0.08, metalness: 0.6, envMapIntensity: 1.8, caustics: 0, name: 'blackGlass' }),
     trim: levelMaterial({ color: 0x1a1c22, roughness: 0.5, metalness: 0.6, caustics: 0, name: 'trim' }),
     rubber: levelMaterial({ color: 0x121214, roughness: 0.9, caustics: 0, name: 'rubber' }),
-    plant: levelMaterial({ color: 0x2f6a3a, roughness: 0.8, caustics: 0.3 * c, side: THREE.DoubleSide, name: 'plant' }),
+    plant: levelMaterial({ color: 0x4f9a5a, roughness: 0.8, caustics: 0.3 * c, side: THREE.DoubleSide, name: 'plant' }),
     neonCyan: neonMaterial(0x30e0ff, 3.2),
     neonPink: neonMaterial(0xff3fa8, 3.2),
     neonGold: neonMaterial(0xffc04a, 3),

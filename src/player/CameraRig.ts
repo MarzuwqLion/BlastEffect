@@ -146,7 +146,7 @@ export class CameraRig {
 
     // Sweep 1: pivot → shoulder.
     this.tmp.copy(this.right).multiplyScalar(shoulderX);
-    this.tmp.y = C.verticalOffset;
+    this.tmp.y = THREE.MathUtils.lerp(C.verticalOffset, C.aimVerticalOffset, this.aimT);
     const sLen = this.tmp.length();
     this.tmp.divideScalar(sLen);
     const sHit = this.physics.sphereCast(this.pivot, this.tmp, C.collisionRadius, sLen, MASK.world);

@@ -115,10 +115,10 @@ export function createProps(m: Mats): Props {
   const stalks: THREE.BufferGeometry[] = [];
   for (let i = 0; i < 9; i++) {
     const a = (i / 9) * Math.PI * 2;
-    const r = 0.15 + (i % 3) * 0.08;
-    const h = 1.2 + (i % 4) * 0.25;
-    const s = new THREE.CylinderGeometry(0.012, 0.02, h, 4).translate(Math.cos(a) * r, h / 2, Math.sin(a) * r);
-    const top = new THREE.ConeGeometry(0.16, 0.22, 6, 1, true).rotateX(Math.PI).translate(Math.cos(a) * r, h + 0.08, Math.sin(a) * r);
+    const r = 0.12 + (i % 3) * 0.07;
+    const h = 0.45 + (i % 4) * 0.14;
+    const s = new THREE.CylinderGeometry(0.008, 0.014, h, 4).translate(Math.cos(a) * r, h / 2, Math.sin(a) * r);
+    const top = new THREE.ConeGeometry(0.09, 0.12, 6, 1, true).rotateX(Math.PI).translate(Math.cos(a) * r, h + 0.04, Math.sin(a) * r);
     stalks.push(s.toNonIndexed(), top.toNonIndexed());
   }
   const reeds: PropPart[] = [{ geometry: mergeGeometries(stalks)!, material: m.plant, castShadow: false }];

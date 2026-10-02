@@ -98,6 +98,8 @@ export class Director {
       for (const n of def.npcs ?? []) this.npcs.push(new Npc(this.game, n));
     }
     this.game.enemies.onEnemyDeath((e) => this.onEnemyDeath(e));
+    // Scene queries only see colliders after a step; nav building raycasts.
+    this.game.physics.step(1 / 60);
   }
 
   get nav(): NavGrid | null {
