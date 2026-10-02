@@ -125,6 +125,20 @@ Status legend: `[x]` done, `[ ]` not yet, `[~]` partially done (see note).
   colliders that queries still hit (invisible blockers); combo damage on
   the boss now goes through his phase logic.
 
+- M9 (in progress): full playthroughs by a bot, title screen to end screen,
+  `node scripts/shots.mjs playthrough` (keyboard/mouse action paths, real
+  Enter presses on the menus) and `PAD=1 ... playthrough` (everything
+  through a simulated gamepad: sticks, triggers, LB/RB, A/X/Y). Both
+  finish with no console errors, ~31 kills and 8-10 combos, Yaw met and
+  the intel flag paying off at the boss. Found and fixed on the way: A*
+  gave up on multi-level detours (expansion budget) and smoothed paths
+  could skip a level; paths hugged stair sides (edge cost + edge-aware
+  smoothing); the player climbed stairs at 1.6 m/s (wall-slide guard
+  fired on slopes); NPCs now turn to face Imani and the dialogue camera
+  stays out of walls; enemy barks are wired up. Death -> retry restores the
+  checkpoint and resets the encounter. README written. Pages workflow
+  split so the build job passes until Pages is enabled in the repo.
+
 ## Notes for a fresh session
 
 - Start the game at any section: `?section=1..5`; invulnerable: `?god=1`;

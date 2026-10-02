@@ -215,6 +215,13 @@ export class Npc {
     } else {
       B.jaw.rotation.x = 0;
     }
+    // In conversation the whole body turns to face her; otherwise back to the post.
+    let wantYaw = this.baseYaw + Math.PI;
+    if (this.lookTarget) wantYaw = Math.atan2(this.lookTarget.x - this.root.position.x, this.lookTarget.z - this.root.position.z);
+    let turn = wantYaw - this.root.rotation.y;
+    while (turn > Math.PI) turn -= Math.PI * 2;
+    while (turn < -Math.PI) turn += Math.PI * 2;
+    this.root.rotation.y += THREE.MathUtils.clamp(turn, -dt * 3, dt * 3);
     // Head turns toward the player when close, or toward the dialogue target.
     let target = this.lookTarget;
     const p = this.game.player.position;
@@ -226,7 +233,7 @@ export class Npc {
       const dx = target.x - _h.x;
       const dz = target.z - _h.z;
       const world = Math.atan2(dx, dz);
-      let rel = world - (this.baseYaw + Math.PI);
+      let rel = world - this.root.rotation.y;
       while (rel > Math.PI) rel -= Math.PI * 2;
       while (rel < -Math.PI) rel += Math.PI * 2;
       yawT = THREE.MathUtils.clamp(rel, -1.1, 1.1);

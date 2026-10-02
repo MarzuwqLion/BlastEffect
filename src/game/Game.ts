@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG, type QualityLevel } from '../config';
-import { Physics, makeRayHit } from '../core/Physics';
+import { MASK, Physics, makeRayHit } from '../core/Physics';
 import { Renderer } from '../core/Renderer';
 import { GameTime } from '../core/time';
 import { EventBus } from '../core/events';
@@ -401,6 +401,12 @@ export class Game {
     // The Crocodile is shot from below, a little off axis: he is big.
     const pos = a.clone().addScaledVector(dir, dist).addScaledVector(side, (croc ? 0.9 : 0.42) * (speakerIsImani ? -1 : 1)).add(new THREE.Vector3(0, croc ? -1.0 : 0.04, 0));
     const look = a.clone().add(new THREE.Vector3(0, croc ? -0.35 : -0.04, 0));
+    // Keep the shot out of walls: pull it in toward the speaker if something is in the way.
+    const toCam = _v3.copy(pos).sub(a);
+    const camDist = toCam.length();
+    toCam.divideScalar(camDist);
+    const free = this.physics.sphereCast(a, toCam, 0.18, camDist, MASK.world);
+    if (free < camDist) pos.copy(a).addScaledVector(toCam, Math.max(0.35, free - 0.1));
     this.rig.frame(pos, look, this.rig.mode !== 'dialogue');
     this.avatar.setTalking(speakerIsImani);
     this.dialogueNpc?.setTalking(!speakerIsImani);

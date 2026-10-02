@@ -371,8 +371,11 @@ export class Player {
       // Blocked vertically: kill velocity into the obstacle.
       if (this.grounded && v.y < 0) v.y = -1;
       if (!this.grounded && v.y > 0 && m.y < this.desired.y * 0.5) v.y = 0;
-      // Blocked horizontally: keep the slide result as velocity (prevents wall sticking).
-      if (this.dashT <= 0 && !this.charging) {
+      // Blocked horizontally: keep the slide result as velocity (prevents wall
+      // sticking). Not while climbing a slope or step: there the controller
+      // trades some horizontal distance for height, which is not a wall.
+      const climbing = this.grounded && m.y > 0.002;
+      if (this.dashT <= 0 && !this.charging && !climbing) {
         const ax = m.x / dt;
         const az = m.z / dt;
         if (Math.abs(ax) < Math.abs(v.x) - 0.5) v.x = ax;

@@ -387,6 +387,7 @@ export class Enemy {
       this.position.set(t.x, t.y - this.centerY, t.z);
     }
     this.setState('lifted');
+    this.game.director.bark(this.kind, 'primed', 0.5);
     this.liftT = duration;
     this.liftBaseY = this.position.y;
     this.primedT = duration + primeGrace;
@@ -689,6 +690,7 @@ export class Enemy {
       this.setGoal(out);
       this.moveSpeed = this.cfg.runSpeed;
       if (this.state === 'cover') this.setState('move');
+      if (player.inCover) this.game.director.bark(this.kind, 'flank', 0.4);
     }
   }
 
@@ -867,6 +869,7 @@ export class Enemy {
     if (this.stateT > 0.25 && Math.floor(this.stateT * 4) !== Math.floor((this.stateT - dt) * 4)) this.updateLos();
     if (!this.los && this.stateT > 0.3) {
       // Lost sight: abort and try again soon.
+      this.game.director.bark(this.kind, 'lost', 0.15);
       this.releaseToken();
       this.attackCd = 0.6;
       this.setState(this.coverPoint ? 'cover' : 'move');

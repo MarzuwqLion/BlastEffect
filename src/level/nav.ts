@@ -30,6 +30,8 @@ export class NavGrid {
   readonly bounds: NavBounds;
   /** Node heights; index = column * MAX_LEVELS + level. NaN = no node. */
   private readonly nodeY: Float32Array;
+  /** 1 for nodes next to a wall or drop: paths pay extra to use them. */
+  private readonly edge: Uint8Array;
   private readonly g: Float32Array;
   private readonly f: Float32Array;
   private readonly from: Int32Array;
@@ -47,6 +49,7 @@ export class NavGrid {
     this.h = Math.ceil((bounds.maxZ - bounds.minZ) / cell);
     const n = this.w * this.h * MAX_LEVELS;
     this.nodeY = new Float32Array(n).fill(NaN);
+    this.edge = new Uint8Array(n);
     this.g = new Float32Array(n);
     this.f = new Float32Array(n);
     this.from = new Int32Array(n);
@@ -92,6 +95,31 @@ export class NavGrid {
           this.nodeY[(cz * this.w + cx) * MAX_LEVELS + level] = y;
           level++;
           this.nodeCount++;
+        }
+      }
+    }
+    this.markEdges();
+  }
+
+  /** Flag nodes with a missing neighbour (wall, drop, stair side). */
+  private markEdges(): void {
+    for (let cz = 0; cz < this.h; cz++) {
+      for (let cx = 0; cx < this.w; cx++) {
+        const col = cz * this.w + cx;
+        for (let l = 0; l < MAX_LEVELS; l++) {
+          const node = col * MAX_LEVELS + l;
+          const y = this.nodeY[node];
+          if (Number.isNaN(y)) break;
+          let e = 0;
+          for (const [dx, dz] of DIRS) {
+            const nx = cx + dx;
+            const nz = cz + dz;
+            if (nx < 0 || nz < 0 || nx >= this.w || nz >= this.h || this.neighbor(nz * this.w + nx, y) < 0) {
+              e = 1;
+              break;
+            }
+          }
+          this.edge[node] = e;
         }
       }
     }
@@ -173,7 +201,7 @@ export class NavGrid {
    * A* from `start` to `goal`. Writes a smoothed list of waypoints into `out`
    * (reusing its vectors) and returns the count, or 0 if unreachable.
    */
-  findPath(start: THREE.Vector3, goal: THREE.Vector3, out: THREE.Vector3[], maxExpand = 6000): number {
+  findPath(start: THREE.Vector3, goal: THREE.Vector3, out: THREE.Vector3[], maxExpand = 30000): number {
     const s = this.nearestNode(start);
     const t = this.nearestNode(goal);
     if (s < 0 || t < 0) return 0;
@@ -218,7 +246,7 @@ export class NavGrid {
           // No corner cutting.
           if (this.neighbor(cz * this.w + nx, y) < 0 || this.neighbor(nz * this.w + cx, y) < 0) continue;
         }
-        const ng = this.g[cur] + cost;
+        const ng = this.g[cur] + cost * (this.edge[nb] ? 2.5 : 1);
         if (this.visit[nb] !== gen || ng < this.g[nb]) {
           this.visit[nb] = gen;
           this.g[nb] = ng;
@@ -276,10 +304,12 @@ export class NavGrid {
       if (col < 0) return false;
       const n = this.neighbor(col, y);
       if (n < 0) return false;
-      // Also require the side cells to be walkable so we keep clear of walls.
+      // Hug no edges mid-segment (stair sides, ledges); ends may touch them.
+      if (this.edge[n] && i > 1 && i < steps - 1) return false;
       y = this.nodeY[n];
     }
-    return true;
+    // Must arrive on b's level, not the floor under or over it.
+    return Math.abs(y - pb.y) <= STEP;
   }
 
   private heuristic(n: number, t: THREE.Vector3): number {

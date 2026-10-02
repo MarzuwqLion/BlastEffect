@@ -11,7 +11,7 @@ import { basin } from '../level/sections/basin';
 import type { Game } from './Game';
 import type { Enemy } from '../enemies/Enemy';
 import type { Flag, DialogueEvent } from '../dialogue/types';
-import { BOSS_BARKS, NAMES, OBJECTIVES, UI } from '../strings';
+import { BARKS, BOSS_BARKS, ENEMY_NAMES, NAMES, OBJECTIVES, UI } from '../strings';
 import { Npc } from '../character/Npc';
 import type { WeaponId } from '../character/types';
 
@@ -372,6 +372,8 @@ export class Director {
       this.game.fx.spawnIn(this.tmp, e.height);
     }
     if (w.hint) this.hint(w.hint);
+    if (w.spawns.some((sp) => sp.kind === 'heavy')) this.bark('heavy', 'heavy');
+    else if (enc.wave === 0 && w.spawns.length) this.bark(w.spawns[0].kind, 'spotted');
     enc.wave++;
   }
 
@@ -400,6 +402,25 @@ export class Director {
 
   private onEnemyDeath(e: Enemy): void {
     this.game.events.emit('enemyKilled', e);
+    if (e.kind !== 'boss') {
+      for (const o of this.game.enemies.active) {
+        if (o !== e && o.alive && o.kind !== 'boss' && o.section === e.section) {
+          this.bark(o.kind, 'allyDown', 0.35);
+          break;
+        }
+      }
+    }
+  }
+
+  private barkCooldownUntil = 0;
+
+  /** An enemy calls out (subtitle). One bark at a time, a few seconds apart. */
+  bark(kind: Enemy['kind'], key: keyof typeof BARKS, chance = 1): void {
+    const now = this.game.time.now;
+    if (now < this.barkCooldownUntil || Math.random() > chance) return;
+    const lines = BARKS[key];
+    this.barkCooldownUntil = now + 4.5;
+    this.game.hud.bark(ENEMY_NAMES[kind], lines[Math.floor(Math.random() * lines.length)]);
   }
 
   isCleared(id: string): boolean {

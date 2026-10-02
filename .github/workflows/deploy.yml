@@ -1,5 +1,9 @@
 name: Deploy to GitHub Pages
 
+# Needs a one-time repo setting: Settings -> Pages -> Source: "GitHub Actions".
+# Until then the build job (tests + production build) still runs and passes;
+# only the deploy job fails.
+
 on:
   push:
     branches: [main]
@@ -18,8 +22,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -28,9 +32,9 @@ jobs:
       - name: Build
         run: npm run build
         env:
+          # Project pages are served from /<repo>/.
           BASE_PATH: /${{ github.event.repository.name }}/
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: dist
 
@@ -41,5 +45,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/configure-pages@v5
       - id: deployment
         uses: actions/deploy-pages@v4

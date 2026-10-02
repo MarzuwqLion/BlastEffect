@@ -55,6 +55,214 @@ const FAKE_PAD = () => {
   navigator.getGamepads = () => [pad, null, null, null];
 };
 
+// Page-side playthrough bot (see the playthrough scenario).
+const BOT = (usePad) => {
+  const g = window.__game;
+  const p = g.player;
+  const d = g.director;
+  const V = p.position.constructor;
+  const dt = 1 / 60;
+  const tmp = new V();
+  const tmp2 = new V();
+  const path = Array.from({ length: 24 }, () => new V());
+  const PADB = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, UP: 12, DOWN: 13 };
+  const bot = {
+    t: 0, sectionT: 0, section: d.current, pathN: 0, pathI: 0, repath: 0, topups: 0, combos0: 0,
+    stuckT: 0, lastPos: new V().copy(p.position), blockedT: 0, talked: new Set(), held: {}, tapNext: {},
+    dialogT: 0, stuck: false, log: [], pushT: 0, noProgressT: 0, lastHp: 0, chaseT: 0,
+  };
+  // ---- Input layer: keyboard/mouse actions or the fake pad. ----
+  const hold = (a, on) => { bot.held[a] = on; };
+  const tap = (a) => { bot.tapNext[a] = true; };
+  const padButton = { fire: PADB.RT, aim: PADB.LT, jump: PADB.A, interact: PADB.X, swapWeapon: PADB.Y, power1: PADB.LB, power2: PADB.RB, uiConfirm: PADB.A, uiDown: PADB.DOWN, dash: PADB.B };
+  let prevTaps = {};
+  const apply = (mx, my) => {
+    if (usePad) {
+      const P = window.__pad;
+      P.axis(0, mx);
+      P.axis(1, -my);
+      const down = {};
+      for (const a in bot.held) if (bot.held[a]) down[padButton[a]] = true;
+      // A tap is a press this frame, released next frame (needs an edge).
+      for (const a in bot.tapNext) if (bot.tapNext[a] && !prevTaps[a]) down[padButton[a]] = true;
+      for (let i = 0; i < 17; i++) { if (down[i]) P.press(i, 1); else P.release(i); }
+    } else {
+      g.input.injectMove(mx, my);
+      for (const a in bot.held) g.input.inject(a, !!bot.held[a]);
+      for (const a in bot.tapNext) if (bot.tapNext[a] && !prevTaps[a]) g.input.inject(a, true);
+    }
+  };
+  const release = () => {
+    if (!usePad) for (const a in bot.tapNext) if (bot.tapNext[a]) g.input.inject(a, !!bot.held[a]);
+    prevTaps = bot.tapNext;
+    bot.tapNext = {};
+  };
+  // ---- Helpers ----
+  // Heading from the player (not the camera, which trails behind her).
+  const faceTo = (x, z) => {
+    g.rig.yaw = Math.atan2(-(x - p.position.x), -(z - p.position.z));
+    g.rig.pitch = 0;
+  };
+  const enemies = () => g.enemies.active.filter((e) => e.alive && e.state !== 'spawning' && e.position.distanceTo(p.position) < 48);
+  const pickTarget = () => {
+    let best = null; let bestScore = 1e9;
+    for (const e of enemies()) {
+      e.chestPoint(tmp);
+      const vis = !g.physics.blocked(g.rig.aimOrigin, tmp);
+      const s = e.position.distanceTo(p.position) + (vis ? 0 : 25) + (e.kind === 'boss' ? 15 : 0);
+      if (s < bestScore) { bestScore = s; best = e; }
+    }
+    return best;
+  };
+  const steerTo = (goal) => {
+    const nav = d.nav;
+    bot.repath -= dt;
+    if (bot.repath <= 0) {
+      bot.repath = 1.5;
+      bot.pathN = nav ? nav.findPath(p.position, goal, path) : 0;
+      bot.pathI = 0;
+      // The first waypoint can sit just behind her (nearest grid node): skip it.
+      while (bot.pathI < bot.pathN - 1 && Math.hypot(path[bot.pathI].x - p.position.x, path[bot.pathI].z - p.position.z) < 1.0) bot.pathI++;
+    }
+    let wp = goal;
+    while (bot.pathI < bot.pathN) {
+      const w = path[bot.pathI];
+      if (Math.hypot(w.x - p.position.x, w.z - p.position.z) < 0.8 && bot.pathI < bot.pathN - 1) bot.pathI++;
+      else { wp = w; break; }
+    }
+    faceTo(wp.x, wp.z);
+    return Math.hypot(goal.x - p.position.x, goal.z - p.position.z);
+  };
+  // ---- One frame ----
+  const frame = () => {
+    bot.held = {};
+    let mx = 0; let my = 0;
+    const st = g.state;
+    if (st === 'dialogue') {
+      bot.dialogT += dt;
+      if (bot.dialogT > 0.35) {
+        bot.dialogT = 0;
+        tap('uiConfirm'); // skips typing, then takes the focused (first) choice
+      }
+    } else if (st === 'playing') {
+      if (d.current !== bot.section) { bot.section = d.current; bot.sectionT = 0; }
+      bot.sectionT += dt;
+      if (p.weapons.smg.reserve < 80) { p.weapons.smg.reserve += 200; bot.topups++; }
+      if (p.weapons.rifle.reserve < 10) { p.weapons.rifle.reserve += 24; bot.topups++; }
+      const target = pickTarget();
+      const boss = g.boss.croc;
+      if (target) {
+        const e = target;
+        const weak = e.kind === 'boss' && e.defenses.shield <= 0 && e.defenses.armor > 0;
+        if (weak) e.model.weakWorld(tmp); else e.chestPoint(tmp);
+        g.debugAimAt(tmp.x, tmp.y, tmp.z);
+        const blocked = g.physics.blocked(g.rig.aimOrigin, tmp);
+        bot.blockedT = blocked ? bot.blockedT + dt : 0;
+        const wantRifle = (e.defenses.shield <= 0 && e.defenses.armor > 0);
+        const cur = p.weapons.current;
+        if ((wantRifle && cur !== 'rifle') || (!wantRifle && cur !== 'smg')) { if (!p.weapons.isSwapping && !p.weapons.isReloading) tap('swapWeapon'); }
+        hold('aim', true);
+        if (!blocked) {
+          if (p.weapons.current === 'rifle') { if (g.frame % 36 === 0) tap('fire'); }
+          else hold('fire', true);
+        }
+        // Powers: snare anything stripped, then detonate with a lance.
+        if (!blocked && e.canBePrimed && !e.primed && p.powers.cooldown.pull <= 0) tap('power1');
+        else if (!blocked && e.primed && p.powers.cooldown.throw <= 0) tap('power2');
+        const dist = e.position.distanceTo(p.position);
+        // No damage landing for a while (target tucked in cover): close in.
+        let hp = 0;
+        for (const x of enemies()) hp += x.defenses.shield + x.defenses.armor + x.defenses.health;
+        if (hp < bot.lastHp - 0.5) bot.noProgressT = 0; else bot.noProgressT += dt;
+        bot.lastHp = hp;
+        if (bot.noProgressT > 6 && e.kind !== 'boss') { bot.chaseT = 4; bot.noProgressT = 0; }
+        if (bot.chaseT > 0) bot.chaseT -= dt;
+        if ((bot.blockedT > 1.5 || bot.chaseT > 0) && dist > 4) {
+          // Go get them: walk the nav path (camera follows the path).
+          hold('aim', false);
+          steerTo(e.position);
+          my = 1;
+          if (bot.lastPos.distanceTo(p.position) < 0.02) bot.stuckT += dt; else bot.stuckT = 0;
+          if (bot.stuckT > 1.2) { tap('jump'); mx = Math.sin(bot.t * 3); }
+        } else {
+          mx = Math.sin(bot.t * 0.8) * 0.7;
+          my = e.kind === 'boss' && dist < 8 ? -1 : 0;
+        }
+        if (boss.ringActive) {
+          const rd = Math.hypot(p.position.x - boss.ringCenter.x, p.position.z - boss.ringCenter.z);
+          if (Math.abs(rd - boss.ringR) < 3 && p.grounded) tap('jump');
+        }
+      } else {
+        // Optional NPC: Yaw in the club once the floor is clear.
+        const yaw = d.npcDef('yaw');
+        let goal = d.objectiveMarker;
+        let talkTo = null;
+        if (d.current === 3 && yaw && !bot.talked.has('yaw') && yaw.canTalk(d)) {
+          goal = tmp2.copy(yaw.root.position);
+          talkTo = 'yaw';
+        }
+        const odette = d.npcDef('odette');
+        if (d.current === 1 && odette && !bot.talked.has('odette')) { talkTo = 'odette'; }
+        if (d.interactTarget && talkTo) {
+          bot.talked.add(talkTo);
+          tap('interact');
+        } else if (goal) {
+          const gp = tmp2.copy(goal);
+          if (d.nav && !d.nav.walkable(gp.x, gp.y, gp.z)) {
+            // Markers float above the floor (and doors sit past the grid's
+            // edge): path to the nearest walkable floor under/near them.
+            let found = false;
+            for (let r = 0; r <= 3 && !found; r += 0.5) {
+              for (let a = 0; a < 8 && !found; a++) {
+                const x = goal.x + Math.sin(a * Math.PI / 4) * r;
+                const z = goal.z + Math.cos(a * Math.PI / 4) * r;
+                for (let y = goal.y + 0.5; y > goal.y - 4; y -= 0.25) {
+                  if (d.nav.walkable(x, y, z)) { gp.set(x, y, z); found = true; break; }
+                }
+                if (r === 0) break;
+              }
+            }
+          }
+          if (bot.pushT > 0) {
+            // Reached a door marker: keep going forward (-z) into the next section.
+            bot.pushT -= dt;
+            g.rig.yaw = 0;
+            my = 1;
+          } else {
+            const dist = steerTo(gp);
+            my = 1;
+            if (dist < 1.2 && !talkTo) bot.pushT = 3;
+          }
+        }
+        // Stuck: hop and wiggle.
+        if (bot.lastPos.distanceTo(p.position) < 0.02 && my !== 0) bot.stuckT += dt; else bot.stuckT = 0;
+        if (bot.stuckT > 1.2) { tap('jump'); mx = Math.sin(bot.t * 3); }
+      }
+      bot.lastPos.copy(p.position);
+    } else if (st === 'dead') {
+      tap('uiConfirm');
+    }
+    apply(mx, my);
+    g.step(dt);
+    release();
+    bot.t += dt;
+  };
+  bot.run = (frames) => {
+    g.skipRender = true;
+    for (let i = 0; i < frames && g.state !== 'end'; i++) frame();
+    if (bot.sectionT > 420) bot.stuck = true;
+    return {
+      t: +bot.t.toFixed(1), state: g.state, section: d.current, objective: d.objective, pos: [p.position.x, p.position.y, p.position.z].map((v) => +v.toFixed(1)),
+      alive: g.enemies.aliveCount(), kills: g.enemies.kills, combos: g.combat.combos, topups: bot.topups, stuck: bot.stuck,
+      boss: g.boss.enemy ? { mode: g.boss.croc.mode, phase: g.boss.croc.phase } : null,
+      enemies: bot.stuck ? g.enemies.active.filter((e) => e.alive).map((e) => `${e.kind}@${e.position.x.toFixed(1)},${e.position.y.toFixed(1)},${e.position.z.toFixed(1)}:${e.state}`) : undefined,
+    };
+  };
+  window.__bot = bot;
+};
+
+if (process.env.DUMP_BOT) fs.writeFileSync(process.env.DUMP_BOT, `window.__installBot = ${BOT.toString()};`);
+
 const TOUR = {
   1: [[-5, 0, -3, 0, -0.05], [3, 0, -30, Math.PI, -0.05], [-2, 0, -35, 0.1, 0.05], [9, 0, -16, Math.PI / 2, -0.05]],
   2: [[0, 0, -46, 0, -0.02], [0, 0, -92, 0.2, 0.0], [5, 0, -122, 0.3, -0.02], [0, 0, -146, Math.PI, 0.05]],
@@ -863,6 +1071,55 @@ const run = {
     });
     console.log('boss end', JSON.stringify(end));
     await shot(page, 'm8-boss-end');
+    await page.close();
+  },
+
+  // Start to finish: title -> dock -> strip -> club (+Yaw) -> terraces -> boss -> end.
+  // A bot follows the objective marker along the nav grid, talks, fights and
+  // uses combos. PAD=1 drives everything through a fake gamepad instead of
+  // keyboard/mouse actions. God mode: this checks flow, not difficulty.
+  async playthrough() {
+    const pad = !!process.env.PAD;
+    const tag = pad ? 'pad' : 'kbm';
+    const page = await open(`manual=1&god=1&debug=1`, undefined, pad ? FAKE_PAD : undefined);
+    // Title: press any key, then Start.
+    await page.evaluate(() => window.__game.simulate(0.5));
+    if (pad) {
+      for (let i = 0; i < 2; i++) {
+        await page.evaluate(() => { window.__pad.press(0); window.__game.simulate(0.1); window.__pad.release(0); window.__game.simulate(0.6); });
+        await page.waitForTimeout(350);
+      }
+    } else {
+      for (let i = 0; i < 2; i++) {
+        await page.keyboard.down('Enter');
+        await page.evaluate(() => window.__game.simulate(0.1));
+        await page.keyboard.up('Enter');
+        await page.evaluate(() => window.__game.simulate(0.6));
+        await page.waitForTimeout(350); // menus ignore input for 250 ms of real time after opening
+      }
+    }
+    const startState = await page.evaluate(() => window.__game.state);
+    console.log(`[${tag}] after title:`, startState);
+    await page.evaluate(BOT, pad);
+    const seen = new Set();
+    let last = null;
+    for (let chunk = 0; chunk < 2000; chunk++) {
+      const r = await page.evaluate(() => window.__bot.run(240));
+      last = r;
+      const key = `${r.section}-${r.state}`;
+      if (!seen.has(key) && (r.state === 'playing' || r.state === 'dialogue' || r.state === 'end')) {
+        seen.add(key);
+        console.log(`[${tag}]`, JSON.stringify(r));
+        await page.evaluate(() => { window.__game.skipRender = false; window.__game.step(1 / 60); });
+        await shot(page, `m9-${tag}-s${r.section}-${r.state}`);
+      }
+      if (r.state === 'end' || r.stuck) break;
+    }
+    console.log(`[${tag}] final`, JSON.stringify(last));
+    const end = await page.evaluate(() => ({ flags: [...window.__game.director.flags], device: window.__game.input.device, endText: document.querySelector('.menu-screen.show, .end')?.textContent?.slice(0, 400) ?? null }));
+    console.log(`[${tag}] end`, JSON.stringify(end));
+    await page.evaluate(() => { window.__game.skipRender = false; window.__game.step(1 / 60); });
+    await shot(page, `m9-${tag}-end`);
     await page.close();
   },
 
