@@ -31,6 +31,8 @@ export class Menus {
   private readonly screens = new Map<string, Screen>();
   private pressAny: HTMLDivElement | null = null;
   private waitingAnyKey = false;
+  /** Ignore menu input briefly after a screen opens (the key that opened it). */
+  private graceUntil = 0;
   private onAnyKey: (() => void) | null = null;
 
   constructor(private readonly game: Game, parent: HTMLElement) {
@@ -99,6 +101,7 @@ export class Menus {
   }
 
   private show(screen: Screen): void {
+    this.graceUntil = performance.now() + 250;
     if (this.current && this.current !== screen) this.current.el.classList.remove('show');
     this.current = screen;
     screen.el.classList.add('show');
@@ -164,7 +167,7 @@ export class Menus {
 
   update(): void {
     const s = this.current;
-    if (!s) return;
+    if (!s || performance.now() < this.graceUntil) return;
     const input = this.game.input;
     const n = s.items.length;
     if (input.pressed('uiDown')) this.focus(s, (s.focus + 1) % n);

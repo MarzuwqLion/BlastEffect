@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RigBuilder, roundedBox, limb, ellipsoid, type PaletteEntry } from '../rigKit';
+import { RigBuilder, roundedBox, limb, ellipsoid, shell, type PaletteEntry } from '../rigKit';
 
 /** Palette slots for Imani's body material. */
 export const S = {
@@ -171,7 +171,7 @@ export function buildBody(rig: RigBuilder): void {
     // Layered pauldron.
     for (let i = 0; i < 3; i++) {
       const r = 0.074 - i * 0.005;
-      const cap = new THREE.SphereGeometry(r, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2.4);
+      const cap = shell(r, 0, Math.PI * 2, 0, Math.PI / 2.4, 0.008, 16, 6);
       cap.scale(1, 0.6, 1.0);
       P(ua, cap, S.PLATE, [s * (0.014 + i * 0.006), 0.016 - i * 0.03, 0], [0, 0, s * -(0.3 + i * 0.14)]);
     }

@@ -38,7 +38,7 @@ Status legend: `[x]` done, `[ ]` not yet, `[~]` partially done (see note).
   recoil, breathing, foot planting).
   *Accept:* gameplay-camera and close-up screenshots compared against
   docs/protagonist.md.
-- [ ] **M6 Dialogue + dock.** Typed dialogue trees, validator test,
+- [x] **M6 Dialogue + dock.** Typed dialogue trees, validator test,
   typewriter UI (mouse/keyboard/gamepad), camera framing, flags/events.
   Dock scene with contact and control prompts.
   *Accept:* validator test passes; dock dialogue screenshot.
@@ -91,6 +91,13 @@ Status legend: `[x]` done, `[ ]` not yet, `[~]` partially done (see note).
   strike, a cast pose per power, low/high cover poses.
   Checked with `node scripts/shots.mjs closeup anims` against
   docs/protagonist.md (front, face, back, hands, pose sheet m5-poses.png).
+
+- M6: dialogue trees live in `src/strings.ts`, validated by
+  `tests/dialogue.test.ts`; UI in `src/ui/Dialogue.ts` (typewriter, 1-4 /
+  arrows / mouse / D-pad + A). Camera frames each speaker close-up
+  (`Game.onDialogueLine`). Scripted run (`node scripts/shots.mjs dialogue`)
+  walks to Odette, talks, picks the schematic: flags set, gate opens,
+  objective advances. Title + press-any-key screens verified.
 
 ## Notes for a fresh session
 

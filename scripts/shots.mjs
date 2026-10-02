@@ -56,6 +56,65 @@ const FAKE_PAD = () => {
 };
 
 const run = {
+  async dialogue() {
+    const page = await open('section=1&autostart=1&manual=1');
+    const info = await page.evaluate(() => {
+      const g = window.__game;
+      const p = g.player;
+      p.teleport({ x: 3.0, y: 0, z: -10.6 });
+      p.yaw = -Math.PI / 2;
+      g.rig.yaw = -Math.PI / 2;
+      g.simulate(0.5);
+      const near = !!g.director.interactTarget;
+      g.input.inject('interact', true);
+      g.step(1 / 60);
+      g.input.inject('interact', false);
+      g.simulate(1.5);
+      return { near, state: g.state, node: g.dialogue.nodeId };
+    });
+    console.log('dialogue start', JSON.stringify(info));
+    await shot(page, 'm6-dialogue-odette');
+    // Advance: first choice, then a line Imani speaks.
+    const steps = await page.evaluate(() => {
+      const g = window.__game;
+      const seen = [];
+      for (let i = 0; i < 4 && g.state === 'dialogue'; i++) {
+        g.dialogue.autoAdvance(i === 0 ? 0 : 0);
+        g.simulate(1.2);
+        seen.push(g.dialogue.nodeId);
+        if (g.dialogue.currentSpeaker === 'imani') break;
+      }
+      return seen;
+    });
+    console.log('dialogue path', JSON.stringify(steps));
+    await shot(page, 'm6-dialogue-imani');
+    const end = await page.evaluate(() => {
+      const g = window.__game;
+      // Choose the schematic (second option at the favour node) and finish.
+      let guard = 0;
+      while (g.state === 'dialogue' && guard++ < 40) {
+        const id = g.dialogue.nodeId;
+        g.dialogue.autoAdvance(id === 'favor' ? 1 : 0);
+        g.simulate(0.2);
+      }
+      g.simulate(2);
+      return { state: g.state, flags: [...g.director.flags], gateOpen: g.director.objective, history: g.dialogue.history };
+    });
+    console.log('dialogue end', JSON.stringify(end));
+    await shot(page, 'm6-after-dialogue');
+    await page.close();
+  },
+
+  async title() {
+    const page = await open('section=1&manual=1');
+    await page.evaluate(() => window.__game.simulate(0.5));
+    await shot(page, 'm9-press-any');
+    await page.keyboard.press('Enter');
+    await page.evaluate(() => window.__game.simulate(1.5));
+    await shot(page, 'm9-title');
+    await page.close();
+  },
+
   async anims() {
     const page = await open('section=1&autostart=1&manual=1&god=1', { width: 640, height: 720 });
     await page.evaluate(() => {

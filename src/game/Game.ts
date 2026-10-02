@@ -260,6 +260,8 @@ export class Game {
       finish();
       return;
     }
+    this.hud.setVisible(false);
+    this.hud.clearPrompts();
     this.menus.waitForAnyKey(() => {
       void this.audio.unlock();
       finish();
@@ -282,6 +284,7 @@ export class Game {
     this.rig.endDialogue();
     this.input.requestPointerLock();
     this.director.setMusic(this.director.section(this.director.current).def.music);
+    this.director.onGameStart();
   }
 
   pause(): void {
@@ -341,6 +344,7 @@ export class Game {
     this.player.exitCover();
     this.hud.setVisible(false);
     this.hud.clearPrompts();
+    this.hud.contextPrompt(null);
     const partner = this.dialoguePartnerHead(_v);
     // Face the partner.
     this.player.yaw = Math.atan2(-(partner.x - this.player.position.x), -(partner.z - this.player.position.z));
@@ -541,9 +545,9 @@ export class Game {
 
   private titleCamera(dt: number): void {
     this.titleT += dt;
-    const t = this.titleT * 0.05;
-    const center = _v.set(2, 3.5, -20);
-    const pos = _v2.set(center.x + Math.cos(t) * 13, 4.5 + Math.sin(t * 0.7), center.z + Math.sin(t) * 13);
+    const t = this.titleT * 0.05 + 1.2;
+    const center = _v.set(1, 3.2, -22);
+    const pos = _v2.set(center.x + Math.cos(t) * 7, 3.6 + Math.sin(t * 0.7) * 0.6, center.z + Math.sin(t) * 9);
     this.rig.frame(pos, center, this.titleT < 0.1);
     this.rig.update(dt, this.player.position, { aiming: false, scoped: false, sprinting: false, crouched: false });
   }

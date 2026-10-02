@@ -49,7 +49,7 @@ export function createMaterials(caustics: boolean): Record<MatName, THREE.Materi
     windowWarm: neonMaterial(0xffc890, 1.15),
     windowCool: neonMaterial(0xbfe6ff, 1.0),
     glowGlyph: new THREE.MeshBasicMaterial({ map: glyph, color: new THREE.Color(1.6, 1.6, 1.6), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
-    screen: new THREE.MeshBasicMaterial({ color: new THREE.Color(0.2, 0.9, 1.2) }),
+    screen: new THREE.MeshBasicMaterial({ color: new THREE.Color(0.06, 0.3, 0.42) }),
     water: new THREE.MeshStandardMaterial({ color: 0x0b3a4a, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.85, envMapIntensity: 2 }),
   };
   return m;

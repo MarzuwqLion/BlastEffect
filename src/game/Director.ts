@@ -157,10 +157,12 @@ export class Director {
       this.game.audio.play('checkpoint');
     }
     this.game.events.emit('sectionStart', index);
-    if (index === 1) {
-      this.game.hud.prompt('move', 6);
-      if (!this.flags.size) this.setObjective(OBJECTIVES.dockTalk, 'odette');
-    }
+    if (index === 1 && !this.flags.size) this.setObjective(OBJECTIVES.dockTalk, 'odette');
+  }
+
+  /** First control prompts once the player actually takes control. */
+  onGameStart(): void {
+    if (this.current === 1) this.hint('move', 'shoulder');
   }
 
   saveCheckpoint(): void {
