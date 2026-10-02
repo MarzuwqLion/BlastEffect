@@ -11,7 +11,7 @@ const PALETTE: PaletteEntry[] = [
   { color: 0xffffff, roughness: 0.5, metalness: 0.3, camo: 1 }, // scale pattern (green base)
   { color: 0xffffff, roughness: 0.38, metalness: 0.55, camo: 2 }, // bronze plates
   { color: 0xd4a640, roughness: 0.28, metalness: 0.95 },
-  { color: 0xd8ccaa, roughness: 0.85, metalness: 0 },
+  { color: 0xa89878, roughness: 0.85, metalness: 0 },
   { color: 0x121413, roughness: 0.6, metalness: 0.3 },
   { color: 0x40ff9a, roughness: 0.3, metalness: 0, emissive: 1.2 },
   { color: 0xa0ff70, roughness: 0.2, metalness: 0, emissive: 2.5 },

@@ -19,7 +19,7 @@ export const basin: SectionDef = {
   enter: [-25, ARENA_Y - 1, -283, 25, 30, -331],
   nav: { minX: -25, maxX: 25, minZ: -331, maxZ: -282, minY: 8, maxY: 16 },
   music: 'boss',
-  ambient: [0x3aa080, 0x2a1408, 1.15],
+  ambient: [0x5f8088, 0x2a1408, 1.05],
   objective: OBJECTIVES.boss,
   markers: { boss: [0, ARENA_Y + 3, -322], ledger: [0, ARENA_Y + 2, -328.5] },
   encounters: [],
@@ -80,7 +80,7 @@ export const basin: SectionDef = {
     b.group.add(glyphRing);
     b.anims.push((t) => (glyphRing.rotation.y = t * 0.1));
     hologram(b, 0, Y + 7, -306, 'eye', '#40ff9a', 5);
-    b.light(0, Y + 3, -306, 0x40ff9a, 10, 16);
+    b.light(0, Y + 3, -306, 0x40ff9a, 5, 14);
 
     // Raised platforms with ramps.
     for (const sx of [-1, 1]) {

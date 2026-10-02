@@ -50,7 +50,7 @@ Status legend: `[x]` done, `[ ]` not yet, `[~]` partially done (see note).
 - [x] **M8 Boss.** The Crocodile: 3 layers/phases, stolen ka powers,
   telegraphs, reinforcements, named bar, pre/post dialogue.
   *Accept:* boss is beatable via ?section=5; length estimate 3-4 min.
-- [ ] **M9 UI, audio, polish.** Title/pause/settings/death/end screens,
+- [x] **M9 UI, audio, polish.** Title/pause/settings/death/end screens,
   synthesized SFX + music via manifest, extra animations, README,
   deploy check.
   *Accept:* full run start to finish via scripted check; no console
@@ -125,7 +125,7 @@ Status legend: `[x]` done, `[ ]` not yet, `[~]` partially done (see note).
   colliders that queries still hit (invisible blockers); combo damage on
   the boss now goes through his phase logic.
 
-- M9 (in progress): full playthroughs by a bot, title screen to end screen,
+- M9: full playthroughs by a bot, title screen to end screen,
   `node scripts/shots.mjs playthrough` (keyboard/mouse action paths, real
   Enter presses on the menus) and `PAD=1 ... playthrough` (everything
   through a simulated gamepad: sticks, triggers, LB/RB, A/X/Y). Both
@@ -138,6 +138,30 @@ Status legend: `[x]` done, `[ ]` not yet, `[~]` partially done (see note).
   stays out of walls; enemy barks are wired up. Death -> retry restores the
   checkpoint and resets the encounter. README written. Pages workflow
   split so the build job passes until Pages is enabled in the repo.
+  Polish after review of the shots: dock office screen texture (was a flat
+  colour), warmer Basin lighting and a warm light riding with the boss so
+  his bronze/gold armour reads. Difficulty check: the same bot without god
+  mode (perfect aim, never uses cover) gets the boss to phase 3 with 67
+  health left before dying at 132 s, so a human using cover with normal
+  aim should land near the 3-4 minute target. Low/high presets render
+  without errors (club: low 169 calls / 149k tris, high 243 / 370k).
+
+## Done checklist (from the brief)
+
+- [x] Completable start to finish with keyboard/mouse and with gamepad
+  (`playthrough`, `PAD=1 playthrough`).
+- [x] Combos work on every enemy type once stripped (`combat`: grunt,
+  trooper, heavy; boss phase 3 in `boss`).
+- [x] Tests pass (42), no console errors in any scripted run, medium
+  budgets met in every section (max 244 draw calls, 282k triangles).
+- [x] Pages workflow builds and tests in CI. Deploy needs the one-time
+  repo setting (Settings -> Pages -> Source: GitHub Actions).
+- [x] New players get control prompts in context, a controls screen and
+  device-matched glyphs.
+- [x] README covers running, building, deploying, debug tools, tuning and
+  audio swapping.
+- Cut order not needed: extra animations, the optional club NPC (Yaw),
+  boss phase three and the terraces are all in.
 
 ## Notes for a fresh session
 

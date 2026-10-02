@@ -136,8 +136,8 @@ export class Crocodile extends Enemy {
   private readonly bubble: THREE.Mesh;
   private bubbleHit = 0;
   private readonly leapFrom = new THREE.Vector3();
-  /** A green light rides with him so he reads at range in a dark arena. */
-  private readonly glow: LightAnchor = { pos: new THREE.Vector3(0, -200, 0), color: new THREE.Color(KA_GREEN), intensity: 3, distance: 8, section: 5, flicker: 0 };
+  /** A warm light rides with him so his bronze and gold read in the green arena. */
+  private readonly glow: LightAnchor = { pos: new THREE.Vector3(0, -200, 0), color: new THREE.Color(0xffd2a0), intensity: 3, distance: 8, section: 5, flicker: 0 };
 
   constructor(game: Game) {
     const model = new BossModel();
@@ -1006,7 +1006,7 @@ export class Crocodile extends Enemy {
     this.croc.chestWorld(this.glow.pos);
     this.glow.pos.x -= Math.sin(this.yaw) * 1.3;
     this.glow.pos.z -= Math.cos(this.yaw) * 1.3;
-    this.glow.intensity = this.mode === 'downed' ? 1.5 : this.mode === 'channel' ? 4 : 2.5 + this.phase * 0.5;
+    this.glow.intensity = this.mode === 'downed' ? 2 : this.mode === 'channel' ? 4.5 : 3.5 + this.phase * 0.5;
     if (this.shieldBubble) this.shieldBubble.visible = this.defenses.shield > 0 && this.mode !== 'dormant' && this.mode !== 'downed';
     const pp = this.game.player.position;
     const dy = pp.y + 1.2 - (this.position.y + this.height * 0.85);
