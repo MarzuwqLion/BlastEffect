@@ -77,7 +77,7 @@ export function sandstoneTexture(base = '#c7a679', mortar = '#8a7050', seed = 1)
 export function lapisTexture(seed = 2): THREE.CanvasTexture {
   const [c, g] = canvas(512, 512);
   const rnd = seeded(seed);
-  g.fillStyle = '#1b2f78';
+  g.fillStyle = '#2442a0';
   g.fillRect(0, 0, 512, 512);
   for (let i = 0; i < 60; i++) {
     g.strokeStyle = `rgba(${80 + rnd() * 60},${110 + rnd() * 60},${200 + rnd() * 55},${0.08 + rnd() * 0.15})`;
@@ -143,7 +143,7 @@ export function streetTextures(seed = 3): { map: THREE.CanvasTexture; rough: THR
       rg.beginPath();
       rg.arc(px + ox, py + oy, rr, 0, Math.PI * 2);
       rg.fill();
-      g.fillStyle = 'rgba(0,0,10,0.18)';
+      g.fillStyle = 'rgba(0,0,10,0.08)';
       g.beginPath();
       g.arc(px + ox, py + oy, rr * 0.8, 0, Math.PI * 2);
       g.fill();
@@ -421,6 +421,43 @@ export function glyphTexture(kind: GlyphKind, color: string): THREE.CanvasTextur
   g.strokeStyle = '#ffffff';
   g.lineWidth = 3;
   drawGlyph(g, kind, 28, 28, 200);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/** Lit window panes with frames, blinds and the odd silhouette (emissive map). */
+export function windowTexture(warm: boolean, seed = 31): THREE.CanvasTexture {
+  const [c, g] = canvas(128, 128);
+  const rnd = seeded(seed);
+  g.fillStyle = '#000';
+  g.fillRect(0, 0, 128, 128);
+  for (let py = 0; py < 2; py++) {
+    for (let px = 0; px < 2; px++) {
+      const x = 6 + px * 60;
+      const y = 6 + py * 60;
+      const lit = rnd() > 0.25;
+      const base = warm ? [255, 200, 140] : [190, 225, 255];
+      const k = lit ? 0.55 + rnd() * 0.45 : 0.08;
+      const grad = g.createLinearGradient(x, y, x, y + 54);
+      grad.addColorStop(0, `rgba(${base[0] * k},${base[1] * k},${base[2] * k},1)`);
+      grad.addColorStop(1, `rgba(${base[0] * k * 0.6},${base[1] * k * 0.6},${base[2] * k * 0.6},1)`);
+      g.fillStyle = grad;
+      g.fillRect(x, y, 56, 56);
+      if (lit && rnd() < 0.5) {
+        // Blinds.
+        g.fillStyle = 'rgba(0,0,0,0.35)';
+        for (let b = 0; b < 8; b++) g.fillRect(x, y + b * 7, 56, 2);
+      } else if (lit && rnd() < 0.4) {
+        // Someone at the window.
+        g.fillStyle = 'rgba(10,6,4,0.8)';
+        g.beginPath();
+        g.arc(x + 28, y + 30, 7, 0, Math.PI * 2);
+        g.fill();
+        g.fillRect(x + 16, y + 38, 24, 18);
+      }
+    }
+  }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;

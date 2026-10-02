@@ -107,7 +107,7 @@ export function createHair(maxCount: number): THREE.InstancedMesh {
   mesh.count = all.length;
   mesh.instanceMatrix.needsUpdate = true;
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  mesh.castShadow = true;
+  mesh.castShadow = false;
   mesh.receiveShadow = true;
   mesh.frustumCulled = false;
   mesh.userData.maxCount = all.length;

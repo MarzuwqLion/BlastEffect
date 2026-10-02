@@ -19,6 +19,7 @@ export const basin: SectionDef = {
   enter: [-25, ARENA_Y - 1, -283, 25, 30, -331],
   nav: { minX: -25, maxX: 25, minZ: -331, maxZ: -282, minY: 8, maxY: 16 },
   music: 'boss',
+  ambient: [0x3aa080, 0x2a1408, 1.15],
   objective: OBJECTIVES.boss,
   markers: { boss: [0, ARENA_Y + 3, -322], ledger: [0, ARENA_Y + 2, -328.5] },
   encounters: [],
@@ -26,7 +27,27 @@ export const basin: SectionDef = {
     const m = game.mats;
     const p = game.props;
     const Y = ARENA_Y;
-    b.box(0, Y - 1.2, -306, 50, 1.2, 50, { mat: m.basalt });
+    b.box(0, Y - 1.2, -306, 50, 1.2, 50, { mat: m.sandstoneDark });
+    // Lapis inlay rings around the lake.
+    for (const r of [9.5, 12]) {
+      const ring = new THREE.Mesh(new THREE.RingGeometry(r, r + 0.35, 64).rotateX(-Math.PI / 2), m.lapis);
+      ring.position.set(0, Y + 0.012, -306);
+      b.group.add(ring);
+    }
+    // Wall sconces: gold bowls with flames all around the walls.
+    const sconces: [number, number][] = [[-24.8, -290], [-24.8, -322], [24.8, -290], [24.8, -322], [-14, -330.8], [14, -330.8], [-8, -330.8], [8, -330.8]];
+    for (const [sx, sz] of sconces) {
+      const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.2, 0.4, 10), m.gold);
+      const inX = sx > 20 ? -0.5 : sx < -20 ? 0.5 : 0;
+      const inZ = sz < -330 ? 0.5 : 0;
+      bowl.position.set(sx + inX, Y + 4.2, sz + inZ);
+      b.group.add(bowl);
+      const fp = bowl.position.clone().add(new THREE.Vector3(0, 0.25, 0));
+      b.anims.push((_t, dt) => {
+        if (Math.random() < dt * 30) game.fx.add.emit(fp.x + (Math.random() - 0.5) * 0.35, fp.y, fp.z + (Math.random() - 0.5) * 0.35, 0, 1.2 + Math.random(), 0, 3, 1.3, 0.35, 0.28, 0.5, { endSize: 0.04, drag: 1 });
+      });
+      b.light(fp.x + inX, fp.y + 0.5, fp.z + inZ, 0xff8a3a, 6, 11, 1);
+    }
     // Walls.
     b.box(-25.5, Y, -306, 1, 14, 50, { mat: m.relief });
     b.box(25.5, Y, -306, 1, 14, 50, { mat: m.relief });
@@ -113,7 +134,7 @@ export const basin: SectionDef = {
     ledger.rotation.x = 0.3;
     b.group.add(ledger);
     b.light(3.5, Y + 3, -329, 0xffc04a, 3, 5);
-    b.light(0, Y + 6, -326, 0x40ff9a, 8, 14);
+    b.light(0, Y + 8, -324, 0x40ff9a, 4, 14);
 
     // Reinforcement doors.
     b.door('basinEast', 25, Y, -306, 4, 5, 0.6, Math.PI / 2);

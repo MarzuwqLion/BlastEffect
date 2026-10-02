@@ -62,7 +62,7 @@ export interface EnemyWeaponConfig {
 }
 
 export interface EnemyConfig {
-  id: 'grunt' | 'trooper' | 'heavy';
+  id: 'grunt' | 'trooper' | 'heavy' | 'boss';
   shield: number;
   armor: number;
   health: number;
@@ -81,6 +81,8 @@ export interface EnemyConfig {
   /** Mass used when flung. */
   mass: number;
   hasWeakPoint: boolean;
+  /** Weak point hitbox radius; when set, the hitbox follows the model's weak point. */
+  weakRadius?: number;
   score: number;
 }
 
@@ -441,64 +443,93 @@ export const CONFIG = {
   },
 
   boss: {
-    shield: 2600,
-    armor: 2800,
-    health: 2600,
+    shield: 3000,
+    armor: 3000,
+    health: 2800,
     radius: 0.9,
     height: 2.9,
-    walkSpeed: 2.6,
-    /** Weak point multiplier when the intel flag marked it. */
-    weakPointMarked: 2.2,
-    weakPointUnmarked: 1.5,
-    /** Seconds of invulnerability while a phase transition plays out. */
+    walkSpeed: 2.4,
+    /** Phase 3 moves this much faster. */
+    enragedSpeed: 1.3,
+    /** Distance band he tries to hold from the player. */
+    rangeMin: 8,
+    rangeMax: 16,
+    /** Max turn rate (rad/s): slow enough that flanking reaches his back. */
+    turnRate: 2.2,
+    /** Extra weak point multiplier once Yaw's intel marked the reservoir. */
+    weakPointBonusMarked: 1.4,
+    weakRadius: 0.32,
+    /** Invulnerable roar when a layer breaks. */
     transitionTime: 2.5,
-    staggerDamageThreshold: 260,
+    /** Hop back to the dais after the roar. */
+    leapTime: 1.1,
+    /** Longest he channels while his reinforcements fight. */
+    channelMax: 35,
+    /** Who comes through the side doors when phase 2 / phase 3 begin. */
+    reinforcements: [
+      ['grunt', 'grunt', 'trooper'],
+      ['grunt', 'trooper', 'heavy'],
+    ] as ('grunt' | 'trooper' | 'heavy')[][],
+    /** This much damage inside staggerWindow staggers him (bursts, combos). */
+    staggerDamageThreshold: 340,
+    staggerWindow: 1.5,
+    staggerTime: 1.4,
+    staggerCooldown: 7,
+    /** Pause between attacks (s), scaled by phase tempo. */
+    attackGapMin: 1.4,
+    attackGapMax: 2.4,
     attacks: {
       volley: {
         telegraph: 0.8,
         bolts: 7,
         damage: 9,
-        speed: 34,
-        spreadDeg: 30,
+        speed: 30,
+        spreadDeg: 34,
         cooldown: 2.6,
       },
       slam: {
         telegraph: 1.1,
-        radius: 9,
-        damage: 38,
-        knockback: 14,
-        ringSpeed: 14,
-        ringWidth: 1.2,
+        /** Only used when the player is this close. */
+        triggerRange: 9,
+        radius: 12,
+        damage: 34,
+        knockback: 12,
+        ringSpeed: 12,
+        ringWidth: 1.4,
         cooldown: 6,
       },
       drag: {
         telegraph: 1,
         range: 30,
         duration: 0.7,
-        pullSpeed: 13,
-        damage: 12,
+        pullSpeed: 15,
+        damage: 10,
         cooldown: 9,
       },
       lunge: {
         telegraph: 1,
-        speed: 22,
+        speed: 20,
         maxDistance: 22,
         damage: 34,
-        width: 1.6,
+        width: 1.8,
+        /** Running into a wall or column stuns him this long. */
+        wallStagger: 2.4,
         cooldown: 8,
       },
       orbs: {
         telegraph: 0.8,
         count: 4,
         damage: 14,
-        speed: 9,
-        homing: 1.3,
-        life: 7,
+        speed: 8,
+        homing: 1.4,
+        life: 6,
         cooldown: 7,
       },
     },
     /** Attack cooldown scale per phase (1-indexed). */
     phaseTempo: [1, 0.85, 0.7],
+    /** Fight-length model (tests): share of time spent shooting, seconds per reinforcement wave. */
+    estimate: { uptime: 0.5, waveTime: 16 },
   },
 
   pickups: {
@@ -546,7 +577,7 @@ export const CONFIG = {
       shadows: true,
       shadowMapSize: 1024,
       bloom: true,
-      bloomStrength: 0.85,
+      bloomStrength: 0.62,
       caustics: true,
       maxPointLights: 6,
       particleScale: 1,
@@ -562,7 +593,7 @@ export const CONFIG = {
       shadows: true,
       shadowMapSize: 2048,
       bloom: true,
-      bloomStrength: 0.95,
+      bloomStrength: 0.7,
       caustics: true,
       maxPointLights: 8,
       particleScale: 1.4,

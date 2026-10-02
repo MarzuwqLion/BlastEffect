@@ -130,7 +130,8 @@ export class Bolts {
       }
       b.pos.addScaledVector(_dir, dist);
       // Draw: stretched along velocity.
-      const len = Math.min(1.1, 0.25 + speed * 0.012) * b.size;
+      // Homing orbs stay round; fast bolts stretch along their velocity.
+      const len = b.homing > 0 ? 0.07 * b.size * 1.8 : Math.min(1.1, 0.25 + speed * 0.012) * b.size;
       _q.setFromUnitVectors(_z, _dir);
       _s.set(0.07 * b.size, 0.07 * b.size, len);
       _m.compose(b.pos, _q, _s);

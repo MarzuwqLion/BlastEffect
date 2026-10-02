@@ -25,7 +25,7 @@ function danceFloor(b: LevelBuilder, x0: number, z0: number, x1: number, z1: num
         vec3 a = vec3(1.0, 0.25, 0.65);
         vec3 bcol = vec3(0.2, 0.85, 1.0);
         vec3 c = mix(a, bcol, step(0.5, fract(rnd * 3.0 + floor(uTime * 0.5) * 0.37)));
-        vec3 col = c * on * edge * (1.2 + (1.0 - beat) * 1.2) + vec3(0.02, 0.02, 0.03);
+        vec3 col = c * on * edge * (0.45 + (1.0 - beat) * 0.45) + vec3(0.015, 0.015, 0.025);
         gl_FragColor = vec4(col, 1.0);
       }`,
   });
@@ -49,7 +49,7 @@ function lightBeams(b: LevelBuilder, positions: [number, number, number, string]
       side: THREE.DoubleSide,
       uniforms: { uColor: { value: new THREE.Vector3(c.r, c.g, c.b) } },
       vertexShader: /* glsl */ `varying float vY; varying vec3 vN; varying vec3 vV; void main(){ vY = position.y; vec4 mv = modelViewMatrix * vec4(position,1.0); vN = normalize(normalMatrix*normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`,
-      fragmentShader: /* glsl */ `uniform vec3 uColor; varying float vY; varying vec3 vN; varying vec3 vV; void main(){ float f = abs(dot(vN, vV)); float a = (1.0 + vY / 9.0) * 0.18 * f; gl_FragColor = vec4(uColor * a, 1.0); }`,
+      fragmentShader: /* glsl */ `uniform vec3 uColor; varying float vY; varying vec3 vN; varying vec3 vV; void main(){ float f = abs(dot(vN, vV)); float a = (1.0 + vY / 9.0) * 0.08 * f; gl_FragColor = vec4(uColor * a, 1.0); }`,
     });
     const cone = new THREE.Mesh(geo, mat);
     cone.position.set(x, y, z);
@@ -86,6 +86,7 @@ export const club: SectionDef = {
   enter: [-22, -1, -152, 30, 9, -200],
   nav: { minX: -22, maxX: 29, minZ: -201, maxZ: -151, minY: -1, maxY: 9 },
   music: 'combat',
+  ambient: [0x8a3a9a, 0x12304a, 1.6],
   objective: OBJECTIVES.club,
   markers: { floor: [0, 1.5, -175], yaw: [-16.5, 2, -181], exit: [0, 6, -200], route: [22.5, 1.5, -180] },
   npcs: [{ id: 'yaw', x: -16.6, y: 0, z: -181, yaw: -Math.PI / 2, dialogue: 'bartender', available: (d) => d.isCleared('club') }],
@@ -134,17 +135,23 @@ export const club: SectionDef = {
     b.box(-13.25, 0, -152.5, 18.5, 10, 1, { mat: m.blackGlass });
     b.box(13.25, 0, -152.5, 18.5, 10, 1, { mat: m.blackGlass });
     b.box(0, 8, -152.5, 8, 2, 1, { mat: m.blackGlass });
-    b.box(-22.75, 0, -176, 1.5, 10, 50, { mat: m.lapis });
+    b.box(-22.75, 0, -176, 1.5, 10, 50, { mat: m.relief });
     // East wall with the service door gap at z -178..-182.
-    b.box(22.75, 0, -165, 1.5, 10, 26, { mat: m.lapis });
-    b.box(22.75, 0, -191, 1.5, 10, 18, { mat: m.lapis });
-    b.box(22.75, 3.5, -180, 1.5, 6.5, 4, { mat: m.lapis });
+    b.box(22.75, 0, -165, 1.5, 10, 26, { mat: m.relief });
+    b.box(22.75, 0, -191, 1.5, 10, 18, { mat: m.relief });
+    b.box(22.75, 3.5, -180, 1.5, 6.5, 4, { mat: m.relief });
     // North wall with the exit opening on the mezzanine.
     b.box(0, 0, -200.75, 46, WING_Y, 1.5, { mat: m.lapis });
     b.box(-12.25, WING_Y, -200.75, 20.5, 10 - WING_Y, 1.5, { mat: m.lapis });
     b.box(12.25, WING_Y, -200.75, 20.5, 10 - WING_Y, 1.5, { mat: m.lapis });
     b.box(0, WING_Y + 4, -200.75, 4, 10 - WING_Y - 4, 1.5, { mat: m.lapis });
     b.door('clubExit', 0, WING_Y, -200.5, 4, 4, 0.5);
+    // Uplight panels on the walls so the room reads.
+    for (let z = -158; z > -198; z -= 8) {
+      for (const x of [-21.9, 21.9]) {
+        b.box(x, 5.2, z, 0.06, 3.2, 1.2, { mat: x < 0 ? m.neonViolet : m.neonCyanDim, collide: false, shadow: false });
+      }
+    }
     // Neon bands on the walls.
     for (const y of [1.0, 9.2]) {
       b.box(-21.95, y, -176, 0.08, 0.08, 48, { mat: m.neonPink, collide: false, shadow: false });
@@ -152,9 +159,9 @@ export const club: SectionDef = {
     }
 
     // Mezzanine (U-shape) and stairs.
-    b.box(-19.5, WING_Y - 0.4, -184.5, 5, 0.4, 31, { mat: m.blackGlass });
-    b.box(19.5, WING_Y - 0.4, -184.5, 5, 0.4, 31, { mat: m.blackGlass });
-    b.box(0, WING_Y - 0.4, -197, 34, 0.4, 6, { mat: m.blackGlass });
+    b.box(-19.5, WING_Y - 0.4, -184.5, 5, 0.4, 31, { mat: m.sandstone });
+    b.box(19.5, WING_Y - 0.4, -184.5, 5, 0.4, 31, { mat: m.sandstone });
+    b.box(0, WING_Y - 0.4, -197, 34, 0.4, 6, { mat: m.sandstone });
     b.box(-17, WING_Y - 0.45, -184.5, 0.12, 0.12, 31, { mat: m.neonGold, collide: false, shadow: false });
     b.box(17, WING_Y - 0.45, -184.5, 0.12, 0.12, 31, { mat: m.neonGold, collide: false, shadow: false });
     b.box(0, WING_Y - 0.45, -194, 34, 0.12, 0.12, { mat: m.neonGold, collide: false, shadow: false });
@@ -227,8 +234,11 @@ export const club: SectionDef = {
       [6, 9.8, -178, '#ff3fa8'], [0, 9.8, -170, '#ffc04a'],
     ]);
     // Lights.
-    b.light(0, 6, -170, 0xff3fa8, 14, 20);
-    b.light(0, 6, -182, 0x30e0ff, 12, 18);
+    b.light(0, 6, -170, 0xff3fa8, 16, 22);
+    b.light(0, 6, -182, 0x30e0ff, 14, 20);
+    b.light(-12, 8, -160, 0xa060ff, 8, 14);
+    b.light(12, 8, -160, 0x30e0ff, 8, 14);
+    b.light(0, 2, -162, 0xffc04a, 6, 12);
     b.light(-15, 3, -181, 0x40ff9a, 6, 10);
     b.light(19.5, 3, -180, 0xff5050, 5, 10);
     b.light(-19.5, 7.5, -186, 0xa060ff, 6, 12);

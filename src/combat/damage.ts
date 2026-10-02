@@ -151,3 +151,32 @@ export function estimateTimeToKill(
   }
   return Infinity;
 }
+
+export interface BossFightModel {
+  shield: number;
+  armor: number;
+  health: number;
+  transitionTime: number;
+  leapTime: number;
+  estimate: { uptime: number; waveTime: number };
+}
+
+/**
+ * Expected boss fight length: each layer is shot with whichever weapon is
+ * best against it, stretched by the share of time the player can actually
+ * shoot (dodging telegraphs, reloading behind cover), plus the two phase
+ * transitions with their reinforcement waves.
+ */
+export function estimateBossFight(boss: BossFightModel, weapons: WeaponConfig[]): { total: number; layers: Record<Layer, number> } {
+  const layers = { shield: 0, armor: 0, health: 0 } as Record<Layer, number>;
+  for (const layer of LAYER_ORDER) {
+    const single = { shield: 0, armor: 0, health: 1 };
+    if (layer === 'health') single.health = boss.health;
+    else single[layer] = boss[layer];
+    let best = Infinity;
+    for (const w of weapons) best = Math.min(best, estimateTimeToKill(single, w));
+    layers[layer] = best / boss.estimate.uptime;
+  }
+  const transitions = 2 * (boss.transitionTime + boss.leapTime + boss.estimate.waveTime);
+  return { total: layers.shield + layers.armor + layers.health + transitions, layers };
+}

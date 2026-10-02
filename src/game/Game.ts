@@ -29,7 +29,7 @@ import { DebugOverlay } from '../ui/DebugOverlay';
 import type { Avatar } from '../character/types';
 import { createAvatar } from '../character/createAvatar';
 import type { Npc } from '../character/Npc';
-import type { SpeakerId } from '../dialogue/types';
+import type { Flag, SpeakerId } from '../dialogue/types';
 
 export type GameState = 'loading' | 'title' | 'playing' | 'dialogue' | 'paused' | 'dead' | 'end';
 
@@ -42,6 +42,8 @@ export interface GameParams {
   autostart: boolean;
   /** Mouse look without pointer lock and no pause on lock loss (automation). */
   automation: boolean;
+  /** Dialogue flags set at start (debug: test payoffs without replaying). */
+  flags: string[];
 }
 
 export function readParams(): GameParams {
@@ -55,12 +57,15 @@ export function readParams(): GameParams {
     debug: q.get('debug') === '1',
     autostart: q.get('autostart') === '1',
     automation: q.get('automation') === '1' || navigator.webdriver === true,
+    flags: (q.get('flags') ?? '').split(',').map((f) => f.trim()).filter(Boolean),
   };
 }
 
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
 const _v3 = new THREE.Vector3();
+const _c1 = new THREE.Color();
+const _c2 = new THREE.Color();
 
 /** Owns every system and runs the frame loop and the game state machine. */
 export class Game {
@@ -94,6 +99,7 @@ export class Game {
   menus!: Menus;
   debug!: DebugOverlay;
   private sun!: THREE.DirectionalLight;
+  private hemi!: THREE.HemisphereLight;
   /** Soft light between the camera and Imani so she always reads. */
   private charLight!: THREE.PointLight;
   private last = 0;
@@ -129,7 +135,8 @@ export class Game {
     // Scene look: dark teal water haze, cool dome light, warm neon below.
     this.scene.background = new THREE.Color(0x02070c);
     this.scene.fog = new THREE.FogExp2(0x051820, q.fogDensity);
-    this.scene.add(new THREE.HemisphereLight(0x2a6f86, 0x120a08, 0.55));
+    this.hemi = new THREE.HemisphereLight(0x3a8aa0, 0x1a1210, 0.8);
+    this.scene.add(this.hemi);
     this.scene.add(new THREE.AmbientLight(0x1a2a3a, 0.25));
     this.sun = new THREE.DirectionalLight(0x9ad8ff, 0.9);
     this.sun.position.set(20, 60, 10);
@@ -202,6 +209,8 @@ export class Game {
       if (document.hidden && (this.state === 'playing' || this.state === 'dialogue')) this.pause();
     });
 
+    // Debug: preset dialogue flags (before the first checkpoint is saved).
+    for (const f of this.params.flags) this.director.flags.add(f as Flag);
     // Compile shaders up front so the first fight doesn't hitch.
     this.director.startAt(this.params.section);
     this.rig.update(0.016, this.player.position, { aiming: false, scoped: false, sprinting: false, crouched: false });
@@ -222,12 +231,12 @@ export class Game {
       m.lookAt(0, 0, 0);
       env.add(m);
     };
-    add(0x30e0ff, 3, -8, 2, -6, 4, 1);
-    add(0xff3fa8, 3, 8, 3, -4, 5, 1.2);
-    add(0xffc04a, 2.5, 0, 2, 9, 6, 0.8);
-    add(0x40ff9a, 2, -9, 4, 6, 2, 3);
-    add(0x2a6f86, 1.2, 0, 12, 0, 20, 20);
-    add(0xa060ff, 2, 9, 1, 7, 2, 2);
+    add(0x30e0ff, 1.2, -8, 2, -6, 3, 0.6);
+    add(0xff3fa8, 1.2, 8, 3, -4, 4, 0.7);
+    add(0xffc04a, 1.4, 0, 2, 9, 6, 0.6);
+    add(0x40ff9a, 0.8, -9, 4, 6, 1.5, 2);
+    add(0x1a4a5a, 0.6, 0, 12, 0, 20, 20);
+    add(0xa060ff, 0.8, 9, 1, 7, 1.5, 1.5);
     const pm = new THREE.PMREMGenerator(this.renderer.renderer);
     const rt = pm.fromScene(env, 0.04);
     pm.dispose();
@@ -387,9 +396,11 @@ export class Game {
     const len = dir.length();
     dir.normalize();
     const side = new THREE.Vector3(-dir.z, 0, dir.x).normalize();
-    const dist = speaker === 'croc' ? 3.2 : Math.min(1.45, Math.max(0.9, len * 0.65));
-    const pos = a.clone().addScaledVector(dir, dist).addScaledVector(side, 0.42 * (speakerIsImani ? -1 : 1)).add(new THREE.Vector3(0, 0.04, 0));
-    const look = a.clone().add(new THREE.Vector3(0, speaker === 'croc' ? 0.0 : -0.04, 0));
+    const dist = speaker === 'croc' ? 4.6 : Math.min(1.45, Math.max(0.9, len * 0.65));
+    const croc = speaker === 'croc';
+    // The Crocodile is shot from below, a little off axis: he is big.
+    const pos = a.clone().addScaledVector(dir, dist).addScaledVector(side, (croc ? 0.9 : 0.42) * (speakerIsImani ? -1 : 1)).add(new THREE.Vector3(0, croc ? -1.0 : 0.04, 0));
+    const look = a.clone().add(new THREE.Vector3(0, croc ? -0.35 : -0.04, 0));
     this.rig.frame(pos, look, this.rig.mode !== 'dialogue');
     this.avatar.setTalking(speakerIsImani);
     this.dialogueNpc?.setTalking(!speakerIsImani);
@@ -480,7 +491,18 @@ export class Game {
     this.fx.update(simDt);
     this.lights.update(realDt);
     globalUniforms.uTime.value += simDt || realDt * 0.3;
+    this.dome.setIndoors(this.director.current === 3 && this.player.position.z < -152);
     this.dome.update(realDt, this.rig.camera.position);
+    // Ambient follows the section (indoors vs out).
+    const amb = this.director.section(this.director.current).def.ambient;
+    if (amb) {
+      const k = Math.min(1, realDt * 1.5);
+      _c1.setHex(amb[0]);
+      _c2.setHex(amb[1]);
+      this.hemi.color.lerp(_c1, k);
+      this.hemi.groundColor.lerp(_c2, k);
+      this.hemi.intensity += (amb[2] - this.hemi.intensity) * k;
+    }
     // Fill light: between the camera and her chest, a little above.
     this.avatar.chestWorld(_v3);
     this.charLight.position.copy(this.rig.camera.position).lerp(_v3, 0.45);

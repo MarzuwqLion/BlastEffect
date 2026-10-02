@@ -548,7 +548,7 @@ export class FX {
 
   // ---- Enemies ----
 
-  telegraphLine(owner: unknown, from: THREE.Vector3, to: THREE.Vector3, progress: number): void {
+  telegraphLine(owner: unknown, from: THREE.Vector3, to: THREE.Vector3, progress: number, tint: 'red' | 'green' = 'red'): void {
     let l = this.lines.find((x) => x.owner === owner);
     if (!l) {
       l = this.lines.find((x) => x.owner === null);
@@ -565,7 +565,8 @@ export class FX {
     l.mesh.scale.set(w, w, len);
     const mat = l.mesh.material as THREE.MeshBasicMaterial;
     mat.opacity = 0.25 + progress * 0.6 + (progress > 0.8 ? Math.sin(performance.now() * 0.05) * 0.2 : 0);
-    mat.color.setRGB(2.5, 0.35 + progress * 0.3, 0.2);
+    if (tint === 'green') mat.color.setRGB(0.4, 2.5, 0.9 + progress * 0.4);
+    else mat.color.setRGB(2.5, 0.35 + progress * 0.3, 0.2);
     l.mesh.visible = true;
     // A charging glow at the muzzle.
     if (Math.random() < 0.5) {

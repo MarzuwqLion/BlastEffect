@@ -55,7 +55,45 @@ const FAKE_PAD = () => {
   navigator.getGamepads = () => [pad, null, null, null];
 };
 
+const TOUR = {
+  1: [[-5, 0, -3, 0, -0.05], [3, 0, -30, Math.PI, -0.05], [-2, 0, -35, 0.1, 0.05], [9, 0, -16, Math.PI / 2, -0.05]],
+  2: [[0, 0, -46, 0, -0.02], [0, 0, -92, 0.2, 0.0], [5, 0, -122, 0.3, -0.02], [0, 0, -146, Math.PI, 0.05]],
+  3: [[0, 0, -156, 0, 0.05], [-6, 0, -176, Math.PI / 2, 0.0], [19.5, 4.2, -192, Math.PI / 2 - 0.4, -0.15], [-14, 0, -166, -0.6, 0.05]],
+  4: [[0, 4.2, -204, 0, 0.08], [0, 6.6, -240, 0, 0.05], [0, 9, -276, Math.PI, -0.15], [13, 4.2, -222, 0.5, 0.0]],
+  5: [[0, 9, -286, 0, 0.05], [15.5, 12, -292, 2.3, -0.2], [0, 9, -318, Math.PI, 0.0], [-20, 9, -300, -1.0, 0.0]],
+};
+
 const run = {
+  async tour() {
+    const only = process.env.SECTION ? [Number(process.env.SECTION)] : [1, 2, 3, 4, 5];
+    for (const sec of only) {
+      const page = await open(`section=${sec}&autostart=1&manual=1&god=1&quality=${process.env.QUALITY ?? 'medium'}`);
+      const files = [];
+      const labels = [];
+      for (const [i, v] of TOUR[sec].entries()) {
+        const st = await page.evaluate((v) => {
+          const g = window.__game;
+          g.hud.setVisible(false);
+          g.player.teleport({ x: v[0], y: v[1], z: v[2] });
+          g.player.yaw = v[3];
+          g.rig.yaw = v[3];
+          g.rig.pitch = v[4];
+          g.simulate(0.6);
+          return { ...g.renderer.frameStats };
+        }, v);
+        const f = path.join(OUT, `tour-${sec}-${i}.png`);
+        await page.screenshot({ path: f });
+        files.push(f);
+        labels.push(`${sec}.${i}  calls ${st.calls}  tris ${Math.round(st.triangles / 1000)}k`);
+        console.log(`section ${sec} view ${i}: calls ${st.calls}, tris ${st.triangles}`);
+      }
+      const { execFileSync } = await import('node:child_process');
+      execFileSync('montage', [...files.map((f, i) => ['-label', labels[i], f]).flat(), '-tile', '2x2', '-geometry', '640x360+2+2', '-background', '#222', '-fill', 'white', path.join(OUT, `m7-section${sec}.png`)]);
+      for (const f of files) fs.unlinkSync(f);
+      await page.close();
+    }
+  },
+
   async dialogue() {
     const page = await open('section=1&autostart=1&manual=1');
     const info = await page.evaluate(() => {
@@ -697,6 +735,134 @@ const run = {
     });
     console.log('high cover', JSON.stringify(h));
     await shot(page, 'm1-cover-high-peek');
+    await page.close();
+  },
+
+  // The whole boss fight, played by a simple bot (god mode): intro dialogue,
+  // three phases with reinforcement waves, downed beat, outro, end screen.
+  async boss() {
+    const page = await open(`section=5&autostart=1&manual=1&debug=1&god=1${process.env.INTEL ? '&flags=intel_weakpoint' : ''}`);
+    const intro = await page.evaluate(() => {
+      const g = window.__game;
+      const p = g.player;
+      p.teleport({ x: 0, y: 9, z: -287 });
+      p.yaw = 0;
+      g.rig.yaw = 0;
+      g.simulate(0.5);
+      p.teleport({ x: 0, y: 9, z: -290 });
+      g.simulate(1.5);
+      return { state: g.state, node: g.dialogue.nodeId, boss: g.boss.croc.mode };
+    });
+    console.log('boss intro', JSON.stringify(intro));
+    await shot(page, 'm8-boss-intro');
+    const started = await page.evaluate(() => {
+      const g = window.__game;
+      let guard = 0;
+      while (g.state === 'dialogue' && guard++ < 40) {
+        g.dialogue.autoAdvance(0);
+        g.simulate(0.3);
+      }
+      g.simulate(0.5);
+      return { state: g.state, mode: g.boss.croc.mode, invulnerable: g.boss.croc.invulnerable, hud: g.hud.boss === g.boss.croc };
+    });
+    console.log('boss start', JSON.stringify(started));
+    await shot(page, 'm8-boss-start');
+
+    // Fight loop, in chunks so screenshots can be taken along the way.
+    const wanted = new Set(['volley', 'slam', 'lunge', 'drag', 'orbs', 'channel', 'phase3']);
+    const log = [];
+    for (let chunk = 0; chunk < 400; chunk++) {
+      const r = await page.evaluate(() => {
+        const g = window.__game;
+        const p = g.player;
+        const b = g.boss.croc;
+        const dt = 1 / 60;
+        g.skipRender = true;
+        const V = p.position.constructor;
+        const tmp = new V();
+        let snap = null;
+        for (let i = 0; i < 30; i++) {
+          if (g.state !== 'playing') break;
+          p.weapons.smg.reserve = 400;
+          p.weapons.rifle.reserve = 60;
+          // Target: reinforcements first, then the boss.
+          let target = null;
+          let best = 1e9;
+          for (const e of g.enemies.active) {
+            if (!e.alive || e === b || e.state === 'spawning') continue;
+            const d = e.position.distanceTo(p.position);
+            if (d < best) { best = d; target = e; }
+          }
+          const onBoss = !target;
+          if (onBoss) target = b.alive ? b : null;
+          if (!target) { g.step(dt); continue; }
+          const wantRifle = onBoss && b.defenses.shield <= 0 && b.defenses.armor > 0;
+          const cur = p.weapons.current;
+          if ((wantRifle && cur !== 'rifle') || (!wantRifle && cur !== 'smg')) {
+            if (!p.weapons.isSwapping) p.weapons.swap();
+          }
+          if (onBoss && b.defenses.shield <= 0 && b.defenses.armor > 0) b.model.weakWorld(tmp);
+          else target.chestPoint(tmp);
+          g.debugAimAt(tmp.x, tmp.y, tmp.z);
+          g.input.inject('aim', true);
+          // Walk toward targets hiding behind something; back off a boss in your face.
+          const blocked = g.physics.blocked(g.rig.aimOrigin, tmp);
+          const dist = Math.hypot(tmp.x - p.position.x, tmp.z - p.position.z);
+          g.input.injectMove(Math.sin(g.frame / 90) * 0.6, blocked ? 1 : onBoss && dist < 7 ? -1 : 0);
+          const rifle = p.weapons.current === 'rifle';
+          g.input.inject('fire', rifle ? (g.frame % 36 === 0) : true);
+          // Combos on the boss in phase 3 (and on stripped adds).
+          if (onBoss && b.phase === 3 && b.alive && !b.invulnerable) {
+            if (p.powers.cooldown.pull <= 0 && !b.primed) g.input.inject('power1', true);
+            else if (b.primed && p.powers.cooldown.throw <= 0) g.input.inject('power2', true);
+          }
+          // Jump over slam rings.
+          if (b.ringActive) {
+            const d = Math.hypot(p.position.x - b.ringCenter.x, p.position.z - b.ringCenter.z);
+            if (Math.abs(d - b.ringR) < 3 && p.grounded) g.input.inject('jump', true);
+          }
+          g.step(dt);
+          g.input.inject('fire', false);
+          g.input.inject('power1', false);
+          g.input.inject('power2', false);
+          g.input.inject('jump', false);
+          if (!snap) {
+            if (b.mode === 'attack' && b.current && b.atkT > b.atkTele * 0.8 && !b.fired) snap = b.current;
+            if (b.mode === 'channel' && b.modeT > 2.5) snap = 'channel';
+            if (b.phase === 3 && b.mode === 'fight') snap = 'phase3';
+          }
+        }
+        g.input.inject('aim', false);
+        g.input.injectMove(0, 0);
+        return {
+          snap, t: +g.boss.fightTime.toFixed(1), state: g.state, mode: b.mode, phase: b.phase,
+          def: [Math.round(b.defenses.shield), Math.round(b.defenses.armor), Math.round(b.defenses.health)],
+          adds: g.enemies.aliveCount() - (b.alive ? 1 : 0), stats: b.stats, combos: g.combat.combos,
+        };
+      });
+      if (chunk % 20 === 0 || r.state !== 'playing') log.push(r);
+      if (r.snap && wanted.has(r.snap)) {
+        wanted.delete(r.snap);
+        await page.evaluate(() => { window.__game.skipRender = false; window.__game.step(1 / 60); });
+        await shot(page, `m8-boss-${r.snap}`);
+      }
+      if (r.state !== 'playing') break;
+    }
+    for (const l of log) console.log('boss', JSON.stringify(l));
+    await page.evaluate(() => { window.__game.skipRender = false; window.__game.simulate(0.2); });
+    await shot(page, 'm8-boss-outro');
+    const end = await page.evaluate(() => {
+      const g = window.__game;
+      let guard = 0;
+      while (g.state === 'dialogue' && guard++ < 60) {
+        g.dialogue.autoAdvance(g.dialogue.nodeId === 'choice' ? 1 : 0);
+        g.simulate(0.3);
+      }
+      g.simulate(1);
+      return { state: g.state, flags: [...g.director.flags], fightTime: +g.boss.fightTime.toFixed(1) };
+    });
+    console.log('boss end', JSON.stringify(end));
+    await shot(page, 'm8-boss-end');
     await page.close();
   },
 

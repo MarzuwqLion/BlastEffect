@@ -5,7 +5,7 @@ import { applyDamage, defensesFor, emptyResult, hasProtection, type DamageResult
 import { canPrime } from '../combat/combo';
 import type { CoverPoint } from '../level/cover';
 import type { Game } from '../game/Game';
-import { EnemyModel, type EnemyKind } from './EnemyModel';
+import { EnemyModel, type EnemyKind, type EnemyVisual } from './EnemyModel';
 
 export type EnemyState =
   | 'inactive' | 'spawning' | 'idle' | 'move' | 'cover'
@@ -32,7 +32,7 @@ let nextId = 1;
  */
 export class Enemy {
   readonly id = nextId++;
-  readonly model: EnemyModel;
+  readonly model: EnemyVisual;
   defenses: Defenses;
   readonly body: RAPIER.RigidBody;
   readonly collider: RAPIER.Collider;
@@ -96,7 +96,7 @@ export class Enemy {
   /** Recently shot from this direction (for reactions). */
   protected underFireT = 0;
 
-  constructor(protected readonly game: Game, readonly kind: EnemyKind | 'boss', readonly cfg: EnemyConfig, model?: EnemyModel) {
+  constructor(protected readonly game: Game, readonly kind: EnemyKind | 'boss', readonly cfg: EnemyConfig, model?: EnemyVisual) {
     this.model = model ?? new EnemyModel(kind as EnemyKind);
     this.defenses = defensesFor(cfg);
     this.radius = cfg.radius;
@@ -127,9 +127,11 @@ export class Enemy {
     if (cfg.hasWeakPoint) {
       const wl = this.model.weakLocal;
       const wy = wl ? wl.y - this.centerY : 0.4;
+      // Body space faces the other way from model space (see FLIP).
+      const wz = cfg.weakRadius && wl ? -wl.z : 0.36 * (cfg.height / 2.35);
       this.weak = world.createCollider(
-        RAPIER.ColliderDesc.ball(0.2 * (cfg.height / 2.35))
-          .setTranslation(0, wy, 0.36 * (cfg.height / 2.35))
+        RAPIER.ColliderDesc.ball(cfg.weakRadius ?? 0.2 * (cfg.height / 2.35))
+          .setTranslation(0, wy, wz)
           .setCollisionGroups(groups(G.HITBOX, G.QUERY))
           .setDensity(0.0001),
         this.body,
@@ -279,6 +281,13 @@ export class Enemy {
     this.state = 'inactive';
     this.releaseToken();
     this.releaseCover();
+    // Park the body out of the world before disabling it: scene queries can
+    // still report disabled colliders, which would leave invisible blockers
+    // where enemies dissolved.
+    this.setPhysicsMode('kinematic');
+    this.body.setTranslation({ x: 0, y: -100 - this.id * 5, z: 0 }, false);
+    this.body.setLinvel({ x: 0, y: 0, z: 0 }, false);
+    this.body.setAngvel({ x: 0, y: 0, z: 0 }, false);
     this.body.setEnabled(false);
     this.model.root.visible = false;
   }

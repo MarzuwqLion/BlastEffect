@@ -165,7 +165,8 @@ export class LevelBuilder {
       new THREE.Vector3(lx - pivotX, ly, lz - pivotZ).applyQuaternion(rot).add(new THREE.Vector3(pivotX, 0, pivotZ));
     // Collider: a thin slab along the slope.
     const thick = 0.3;
-    const qSlope = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), dir * slope);
+    // Rotating +Z by -angle about X tips it upward, so rise toward `dir`.
+    const qSlope = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -dir * slope);
     const q = rot.clone().multiply(qSlope);
     const center = local(x, (y0 + y1) / 2 - (thick / 2) * Math.cos(slope), (z0 + z1) / 2);
     this.game.physics.addFixedBox(center.x, center.y, center.z, w / 2, thick / 2, hyp / 2, q);
@@ -242,12 +243,12 @@ export class LevelBuilder {
       box.position.y = 0.28;
       const lid = new THREE.Mesh(new THREE.BoxGeometry(1.04, 0.08, 0.64), mats.gold);
       lid.position.y = 0.58;
-      const glow = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.06, 0.62), mats.neonGold);
+      const glow = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.06, 0.62), mats.neonCyanDim);
       glow.position.y = 0.36;
       mesh.add(box, lid, glow);
       this.game.physics.addFixedBox(x, y + 0.3, z, 0.5, 0.3, 0.3, null, 'metal');
     } else {
-      const box = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.3, 0.35), mats.neonWhite);
+      const box = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.3, 0.35), mats.pickupGlow);
       box.position.y = 0.35;
       const cross1 = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.08, 0.37), mats.neonRed);
       cross1.position.y = 0.35;
@@ -259,7 +260,7 @@ export class LevelBuilder {
     this.group.add(mesh);
     const p: Pickup = { kind, pos: new THREE.Vector3(x, y, z), mesh, section: this.section, cooldown: 0, used: false, flag };
     this.pickups.push(p);
-    this.light(x, y + 0.8, z, kind === 'ammo' ? 0xffc04a : 0xff6060, 2.5, 4);
+    this.light(x, y + 0.8, z, kind === 'ammo' ? 0x60d8ff : 0xff6060, 1.5, 3.5);
     return p;
   }
 

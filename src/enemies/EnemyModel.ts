@@ -166,11 +166,42 @@ function buildKind(kind: EnemyKind): BuiltModel {
   return { mesh: built.mesh, material, muzzleLocal, weakLocal };
 }
 
+export type PoseMode = 'normal' | 'stagger' | 'lifted' | 'dead' | 'flung' | 'stomp';
+
+export interface PoseParams {
+  speed: number;
+  strafe: number;
+  back: boolean;
+  aim: number;
+  crouch: number;
+  pitch: number;
+  mode: PoseMode;
+  modeT: number;
+  spin: number;
+}
+
+/** What Enemy needs from a visual (crew members and the boss implement it). */
+export interface EnemyVisual {
+  readonly root: THREE.Group;
+  readonly weakLocal: THREE.Vector3 | null;
+  muzzleWorld(out: THREE.Vector3): THREE.Vector3;
+  headWorld(out: THREE.Vector3): THREE.Vector3;
+  chestWorld(out: THREE.Vector3): THREE.Vector3;
+  weakWorld(out: THREE.Vector3): THREE.Vector3;
+  kickRecoil(amount?: number): void;
+  react(side: number, amount: number): void;
+  setFlash(r: number, g: number, b: number, a: number): void;
+  setGlow(r: number, g: number, b: number, a: number): void;
+  setDissolve(v: number): void;
+  pose(dt: number, p: PoseParams): void;
+  spinUp(amount: number): void;
+}
+
 /**
  * One enemy's visual: the skinned crew model plus procedural animation
  * (walk cycle, aim, crouch, recoil, stagger, lift flail, limp death).
  */
-export class EnemyModel {
+export class EnemyModel implements EnemyVisual {
   readonly root = new THREE.Group();
   readonly mesh: THREE.SkinnedMesh;
   readonly material: THREE.MeshStandardMaterial;
@@ -277,7 +308,7 @@ export class EnemyModel {
    * weapon raised, `crouch` 0..1, `pitch` aim pitch (rad), `mode` for
    * special states.
    */
-  pose(dt: number, p: { speed: number; strafe: number; back: boolean; aim: number; crouch: number; pitch: number; mode: 'normal' | 'stagger' | 'lifted' | 'dead' | 'flung' | 'stomp'; modeT: number; spin: number }): void {
+  pose(dt: number, p: PoseParams): void {
     const B = this.bones;
     this.time += dt;
     this.recoil = Math.max(0, this.recoil - dt * 8);

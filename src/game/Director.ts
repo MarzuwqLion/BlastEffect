@@ -11,7 +11,7 @@ import { basin } from '../level/sections/basin';
 import type { Game } from './Game';
 import type { Enemy } from '../enemies/Enemy';
 import type { Flag, DialogueEvent } from '../dialogue/types';
-import { OBJECTIVES, UI } from '../strings';
+import { BOSS_BARKS, NAMES, OBJECTIVES, UI } from '../strings';
 import { Npc } from '../character/Npc';
 import type { WeaponId } from '../character/types';
 
@@ -69,6 +69,8 @@ export class Director {
   private interactNpc: Npc | null = null;
   bossStarted = false;
   bossDone = false;
+  /** The intro plays once; retries after a death skip it. */
+  bossIntroSeen = false;
   private lightTimer = 0;
   private readonly tmp = new THREE.Vector3();
   musicCue: string = 'dock';
@@ -326,7 +328,14 @@ export class Director {
     if (this.current === 5 && !this.bossStarted && !this.bossDone && p.position.z < -289 && p.alive && this.game.state === 'playing') {
       this.bossStarted = true;
       this.game.boss.prepare();
-      this.game.startDialogue('bossIntro', null);
+      if (this.bossIntroSeen) {
+        // Retry after a death: no speech, straight to it.
+        this.game.hud.bark(NAMES.boss, BOSS_BARKS.retry);
+        this.onDialogueEvent('startBoss');
+      } else {
+        this.bossIntroSeen = true;
+        this.game.startDialogue('bossIntro', null);
+      }
     }
 
     if (!p.alive) {
@@ -484,9 +493,18 @@ export class Director {
         break;
       case 'endLevel':
         this.bossDone = true;
+        this.setMusic('victory');
         this.game.showEnd();
         break;
     }
+  }
+
+  /** The Crocodile is down: the fight is over, the outro follows. */
+  onBossDowned(): void {
+    this.bossDone = true;
+    this.setMusic('victory');
+    this.setObjective(OBJECTIVES.ledger, 'ledger');
+    this.game.events.emit('bossDefeated');
   }
 
   get interactTarget(): Npc | null {

@@ -90,7 +90,7 @@ export class Renderer {
       this.composer = new EffectComposer(this.renderer, rt);
       this.renderPass = new RenderPass(this.scene, this.camera);
       this.composer.addPass(this.renderPass);
-      this.bloom = new UnrealBloomPass(new THREE.Vector2(this.width, this.height), q.bloomStrength, 0.4, 1.0);
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(this.width, this.height), q.bloomStrength, 0.32, 1.0);
       this.composer.addPass(this.bloom);
       this.composer.addPass(new OutputPass());
     }

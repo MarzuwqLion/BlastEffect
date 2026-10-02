@@ -50,6 +50,8 @@ export interface SectionDef {
   enter: [number, number, number, number, number, number];
   nav: NavBounds;
   music: MusicCue;
+  /** Hemisphere ambient for this section: sky colour, ground colour, intensity. */
+  ambient?: [number, number, number];
   objective: string;
   encounters: EncounterDef[];
   npcs?: NpcDef[];

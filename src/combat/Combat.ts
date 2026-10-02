@@ -34,7 +34,9 @@ export class Combat {
     if (z === 'weak') base *= e.weakPointBonus;
     const stagger = w.id === 'rifle' ? 0.45 : 0;
     const r = this.damage(e, base, w.layers, z, point, dir, { stagger, impulse: w.killImpulse, source: w.id });
-    this.game.fx.impact(point, normal, r.firstLayer === 'shield' ? 'shield' : r.firstLayer === 'armor' ? 'armor' : 'flesh', w.id === 'rifle' ? 1.6 : 1);
+    // Zero damage on a live target means an invulnerable barrier: spark like a shield.
+    const surface = r.firstLayer === 'shield' || (r.total <= 0 && e.alive) ? 'shield' : r.firstLayer === 'armor' ? 'armor' : 'flesh';
+    this.game.fx.impact(point, normal, surface, w.id === 'rifle' ? 1.6 : 1);
     if (!e.alive || e.state === 'flung') {
       // Shots push ragdolls around a little.
       _v.copy(dir).multiplyScalar(w.id === 'rifle' ? 3 : 0.6);
@@ -96,8 +98,9 @@ export class Combat {
   kill(e: Enemy, dir: THREE.Vector3 | null, impulse: number, crit: boolean): void {
     e.die(dir, impulse);
     this.game.time.hitStop(crit ? CONFIG.feel.hitStopHeadshotKill : CONFIG.feel.hitStopKill);
-    this.game.audio.play(e.kind === 'heavy' ? 'deathHeavy' : 'deathGrunt', { at: e.position, volume: 0.8 });
-    this.game.fx.deathBurst(e.chestPoint(_v), e.kind === 'heavy' ? 1.6 : 1);
+    const big = e.kind === 'heavy' || e.kind === 'boss';
+    this.game.audio.play(big ? 'deathHeavy' : 'deathGrunt', { at: e.position, volume: 0.8 });
+    this.game.fx.deathBurst(e.chestPoint(_v), big ? 1.6 : 1);
     this.game.input.rumble(0.35, 0.1);
   }
 
@@ -109,9 +112,15 @@ export class Combat {
     primed.primedT = 0;
     const targets = this.comboTargets;
     targets.length = 0;
+    let boss: Enemy | null = null;
     for (const e of this.game.enemies.active) {
       if (!e.alive) continue;
       e.chestPoint(_v);
+      // The boss takes combo damage through his own path (phases, invulnerability).
+      if (e.kind === 'boss') {
+        if (_v.distanceTo(_center) <= C.radius + e.radius) boss = e;
+        continue;
+      }
       targets.push({ x: _v.x, y: _v.y, z: _v.z, defenses: e.defenses, enemy: e });
     }
     // resolveCombo applies the layer math; feedback per hit below.
@@ -140,6 +149,14 @@ export class Combat {
       } else {
         e.stagger(C.stagger);
       }
+    }
+    if (boss) {
+      boss.chestPoint(_v2);
+      _v.copy(_v2).sub(_center).setY(0);
+      if (_v.lengthSq() < 1e-4) _v.set(0, 0, 1);
+      _v.normalize();
+      this.damage(boss, C.damage, C.layers, 'body', _v2, _v, { source: 'combo', silent: false });
+      boss.stagger(C.stagger);
     }
     this.game.time.hitStop(C.hitStop);
     this.game.fx.comboExplosion(_center, C.radius);

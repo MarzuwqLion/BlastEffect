@@ -42,12 +42,12 @@ Status legend: `[x]` done, `[ ]` not yet, `[~]` partially done (see note).
   typewriter UI (mouse/keyboard/gamepad), camera framing, flags/events.
   Dock scene with contact and control prompts.
   *Accept:* validator test passes; dock dialogue screenshot.
-- [ ] **M7 Level art.** Strip, club, terrace: Egyptian-inspired
+- [x] **M7 Level art.** Strip, club, terrace: Egyptian-inspired
   architecture, neon, holograms, wet streets, fog, bloom, dome with sea
   life. Checkpoints per section, quality presets, instancing.
   *Accept:* medium preset < 500 draw calls / < 1.5M tris in every
   section (debug overlay readings in screenshots).
-- [ ] **M8 Boss.** The Crocodile: 3 layers/phases, stolen ka powers,
+- [x] **M8 Boss.** The Crocodile: 3 layers/phases, stolen ka powers,
   telegraphs, reinforcements, named bar, pre/post dialogue.
   *Accept:* boss is beatable via ?section=5; length estimate 3-4 min.
 - [ ] **M9 UI, audio, polish.** Title/pause/settings/death/end screens,
@@ -99,8 +99,35 @@ Status legend: `[x]` done, `[ ]` not yet, `[~]` partially done (see note).
   walks to Odette, talks, picks the schematic: flags set, gate opens,
   objective advances. Title + press-any-key screens verified.
 
+- M7: textured, lit sections (sandstone/lapis/relief walls, glyph signs,
+  neon, holograms, puddled streets, stalls, facades with lit windows, dome
+  creatures), per-section ambient light, pooled point lights reassigned to
+  the nearest anchors, sections outside current+-1 hidden. Medium preset
+  (`node scripts/shots.mjs sections`): 124-244 draw calls, 268-282k
+  triangles per section. Found and fixed: stair colliders sloped the wrong
+  way (enemies could not path onto raised floors; verified the player and
+  nav climb every staircase now).
+
+- M8: the Crocodile (`src/enemies/Boss.ts`, model in `BossModel.ts`).
+  Shield 3000 / armor 3000 / health 2800, one phase per layer. Attacks are
+  stolen ka powers, all telegraphed >= 0.8 s: volley (bolt fan), slam
+  (ground ring you jump), drag (tether that yanks you out of cover; blocked
+  by cover, broken by a dash), lunge (charge along a floor stripe; crashing
+  into a wall or column stuns him), homing orbs. Each broken layer: roar,
+  leap to the dais, invulnerable channel while reinforcements come through
+  the side doors. Phase 3 is primable (Snare in place) so combos work; big
+  bursts and combos stagger him. Weak point is the ka reservoir above his
+  shoulders (marked, and worth more, with Yaw's intel). Pre/post dialogue
+  frame him from below; retries skip the intro. Length: the model in
+  `tests/boss.test.ts` estimates ~225 s; a perfect-aim bot
+  (`node scripts/shots.mjs boss`) finishes in ~110 s, ending on the end
+  screen with no console errors. Also fixed: dissolved enemies left disabled
+  colliders that queries still hit (invisible blockers); combo damage on
+  the boss now goes through his phase logic.
+
 ## Notes for a fresh session
 
-- Start the game at any section: `?section=1..5`; invulnerable: `?god=1`.
+- Start the game at any section: `?section=1..5`; invulnerable: `?god=1`;
+  preset dialogue flags: `?flags=intel_weakpoint,yaw_met`.
 - Screenshots: `npm run shots` (writes to `docs/screenshots/`).
 - Headless Chromium is available at `/opt/pw-browsers` (Playwright 1.56).

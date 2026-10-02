@@ -78,7 +78,7 @@ export class Dome {
     for (let i = 0; i < lifeCount; i++) {
       const kind = kinds[i % kinds.length];
       const tex = creatureTexture(kind);
-      const sm = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false, fog: false, opacity: 0.85 });
+      const sm = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: true, fog: false, opacity: 0.85 });
       const sprite = new THREE.Sprite(sm);
       const size = (kind === 'whale' ? 90 : kind === 'school' ? 70 : kind === 'manta' ? 45 : 30) * 0.2;
       sprite.scale.set(size, size * 0.5, 1);
@@ -102,6 +102,10 @@ export class Dome {
     this.snow.frustumCulled = false;
     this.group.add(this.snow);
     scene.add(this.group);
+  }
+
+  setIndoors(indoors: boolean): void {
+    this.snow.visible = !indoors;
   }
 
   update(dt: number, cam: THREE.Vector3): void {

@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import type { LightAnchor } from '../level/LevelBuilder';
 
+/** Anchor intensities are authored small; physically based falloff needs more. */
+const LIGHT_SCALE = 3;
+
 /**
  * A fixed number of real point lights, reassigned to the nearest light
  * anchors as the camera moves. Keeping the count constant means shaders
@@ -78,7 +81,7 @@ export class LightPool {
       l.distance = a.distance;
       let k = 1;
       if (a.flicker) k = 0.75 + 0.25 * Math.sin(this.time * 17 + a.pos.x) * Math.sin(this.time * 7.3 + a.pos.z);
-      l.intensity = a.intensity * this.fade[i] * k;
+      l.intensity = a.intensity * LIGHT_SCALE * this.fade[i] * k;
     }
   }
 }

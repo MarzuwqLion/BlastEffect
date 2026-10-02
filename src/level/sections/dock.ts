@@ -14,6 +14,7 @@ export const dock: SectionDef = {
   enter: [-14, -2, 6, 14, 12, -38],
   nav: { minX: -12, maxX: 14, minZ: -44, maxZ: 4, minY: -2, maxY: 8 },
   music: 'dock',
+  ambient: [0x3a8aa0, 0x1a1210, 0.85],
   objective: OBJECTIVES.dockTalk,
   encounters: [],
   npcs: [{ id: 'odette', x: 4.6, y: 0, z: -11.2, yaw: Math.PI * 0.62, dialogue: 'dock' }],

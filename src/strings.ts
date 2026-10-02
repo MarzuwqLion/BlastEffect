@@ -185,6 +185,18 @@ export const BARKS = {
   allyDown: ['Man down.', 'They got Osei.', 'She is not playing.'],
 };
 
+/** The Crocodile's lines during the fight, shown as subtitles. */
+export const BOSS_BARKS = {
+  retry: 'Back already. Persistence runs in the family.',
+  phase2: 'Shift change. Get in here, all of you.',
+  phase3: "Fine. I'll do the paperwork myself.",
+  resume: 'Where were we.',
+  drag: ['Come here.', 'Closer.', "Don't be shy."],
+  lungeWall: ['…Who put that there.'],
+  orbs: ['These used to be people. Mind them.'],
+  downed: 'Enough. Enough.',
+};
+
 export const DIALOGUE: Record<string, DialogueTree> = {
   dock: {
     id: 'dock',

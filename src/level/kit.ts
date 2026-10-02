@@ -209,7 +209,7 @@ export function obelisk(b: LevelBuilder, m: Mats, x: number, y: number, z: numbe
       strip.rotateX(Math.atan2(w * 0.175, h) * 1);
       strip.translate(0, 0, r);
       strip.rotateY(a);
-      b.mesh(strip, m.neonCyan, new THREE.Vector3(x, y, z), 0, 1, false, false);
+      b.mesh(strip, m.neonCyanDim, new THREE.Vector3(x, y, z), 0, 1, false, false);
     }
   }
 }
@@ -264,7 +264,7 @@ function reflectionMaterial(color: string): THREE.ShaderMaterial {
         float across = 1.0 - abs(vUv.x - 0.5) * 2.0;
         float along = 1.0 - vUv.y;
         float ripple = 0.75 + 0.25 * sin(vW.x * 7.0 + vW.z * 3.0 + uTime * 1.5) * sin(vW.z * 5.0 - uTime);
-        float a = pow(across, 1.5) * along * along * ripple * 0.55;
+        float a = pow(across, 1.5) * along * along * ripple * 0.32;
         gl_FragColor = vec4(uColor * a, 1.0);
       }`,
   });
@@ -372,7 +372,7 @@ export function facade(b: LevelBuilder, m: Mats, x0: number, z0: number, z1: num
       const wz = z + len / bays / 2;
       for (let f = 1; f < Math.floor(height / 3.2); f++) {
         const lit = (i * 7 + f * 3) % 4 !== 0;
-        b.box(x0 - side * 0.03, f * 3.2 + 0.6, wz, 0.06, 1.5, 1.6, { mat: lit ? (f % 2 ? m.windowWarm : m.windowCool) : m.blackGlass, collide: false, shadow: false });
+        b.box(x0 - side * 0.03, f * 3.2 + 0.6, wz, 0.06, 1.5, 1.6, { mat: lit ? ((i + f) % 3 === 0 ? m.windowCool : (i + f) % 3 === 1 ? m.windowWarm : m.windowWarm2) : m.blackGlass, collide: false, shadow: false });
         b.box(x0 - side * 0.06, f * 3.2 + 0.5, wz, 0.1, 0.12, 1.9, { mat: m.trim, collide: false });
       }
     }
