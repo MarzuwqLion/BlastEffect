@@ -56,6 +56,124 @@ const FAKE_PAD = () => {
 };
 
 const run = {
+  async anims() {
+    const page = await open('section=1&autostart=1&manual=1&god=1', { width: 640, height: 720 });
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.hud.setVisible(false);
+      window.__frame = (angleDeg = 35, dist = 3.2, h = 1.0) => {
+        const p = g.player.position;
+        const V = p.constructor;
+        // Body forward is (-sin yaw, -cos yaw); orbit around it.
+        const a = g.player.yaw + (angleDeg * Math.PI) / 180;
+        const pos = new V(p.x - Math.sin(a) * dist, p.y + h + 0.3, p.z - Math.cos(a) * dist);
+        g.rig.frame(pos, new V(p.x, p.y + h, p.z), true);
+      };
+      window.__reset = (x = -5, z = -6, yaw = 0) => {
+        const p = g.player;
+        g.input.clearInjectedMove();
+        for (const a of ['aim', 'fire', 'sprint', 'jump', 'dash', 'melee', 'reload']) g.input.inject(a, false);
+        p.teleport({ x, y: 0, z });
+        p.yaw = yaw;
+        g.rig.yaw = yaw;
+        p.combatActive = true;
+        p.powers.reset();
+        g.simulate(0.5);
+      };
+    });
+    const poses = [
+      ['idle', `__reset(); window.__frame(35, 3.0, 0.95); g.simulate(0.4);`],
+      ['run', `__reset(-5, 2); g.input.injectMove(0, 1); g.simulate(0.73);`],
+      ['sprint', `__reset(-5, 2); g.input.injectMove(0, 1); g.input.inject('sprint', true); g.simulate(0.81);`],
+      ['aim', `__reset(); g.input.inject('aim', true); g.simulate(0.5);`],
+      ['coverLow', `__reset(4.0, -11.5, -Math.PI / 2); g.input.injectMove(0, 1); g.simulate(0.6); g.input.injectMove(0, 0); g.simulate(0.5);`],
+      ['coverHigh', `__reset(6.9, -6, -Math.PI / 2); g.input.injectMove(0, 1); g.simulate(0.6); g.input.injectMove(0, 0); g.simulate(0.5);`],
+      ['jump', `__reset(); g.input.inject('jump', true); g.step(1 / 60); g.input.inject('jump', false); g.simulate(0.28);`],
+      ['hover', `__reset(); g.input.inject('jump', true); g.step(1 / 60); g.input.inject('jump', false); g.simulate(0.45); g.input.inject('aim', true); g.simulate(0.5);`],
+      ['dash', `__reset(); g.simulate(1.6); g.input.injectMove(-1, 0); g.step(1 / 60); g.input.inject('dash', true); g.step(1 / 60); g.input.inject('dash', false); g.simulate(0.1);`],
+      ['castPull', `__reset(); g.avatar.trigger({ type: 'cast', power: 'pull' }); g.simulate(0.3);`],
+      ['castThrow', `__reset(); g.avatar.trigger({ type: 'cast', power: 'throw' }); g.simulate(0.26);`],
+      ['castCharge', `__reset(); g.avatar.trigger({ type: 'cast', power: 'charge' }); g.simulate(0.2);`],
+      ['melee', `__reset(); g.avatar.trigger({ type: 'melee' }); g.simulate(0.22);`],
+      ['reload', `__reset(); g.player.weapons.smg.mag = 10; g.player.weapons.startReload(); g.simulate(0.75);`],
+      ['rifleAim', `__reset(); g.player.weapons.swap(); g.simulate(0.8); g.input.inject('aim', true); g.simulate(0.6);`],
+      ['death', `__reset(); g.player.die(); g.simulate(1.6);`],
+    ];
+    const files = [];
+    for (const [name, code] of poses) {
+      await page.evaluate((code) => {
+        const g = window.__game;
+        // eslint-disable-next-line no-eval
+        eval(code);
+        window.__frame(35, 3.0, 0.95);
+        g.step(1 / 60);
+      }, code);
+      const f = path.join(OUT, `pose-${name}.png`);
+      await page.screenshot({ path: f });
+      files.push(f);
+      if (name === 'death') await page.evaluate(() => window.__game.player.spawn(window.__game.player.position.clone(), 0));
+    }
+    const { execFileSync } = await import('node:child_process');
+    execFileSync('montage', [...files.map((f, i) => ['-label', poses[i][0], f]).flat(), '-tile', '8x2', '-geometry', '320x360+2+2', '-background', '#222', '-fill', 'white', path.join(OUT, 'm5-poses.png')]);
+    for (const f of files) fs.unlinkSync(f);
+    console.log('shot m5-poses');
+    await page.close();
+  },
+
+  async closeup() {
+    const page = await open('section=1&autostart=1&manual=1&god=1');
+    const views = [
+      ['m5-front', [0, 1.05, -3.1], [0, 0.98, 0]],
+      ['m5-face', [0.12, 1.66, -0.62], [0, 1.62, 0]],
+      ['m5-back', [0.9, 1.6, 3.0], [0, 1.15, 0]],
+      ['m5-side', [3.0, 1.2, -0.4], [0, 1.0, 0]],
+      ['m5-threequarter', [-1.9, 1.35, -2.3], [0, 1.05, 0]],
+      ['m5-hands', [-0.75, 1.25, -1.0], [0, 1.0, 0]],
+    ];
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.hud.setVisible(false);
+      g.player.teleport({ x: -5, y: 0, z: -3 });
+      g.player.yaw = 0;
+      g.rig.yaw = 0;
+      g.simulate(1.5);
+    });
+    for (const [name, off, look] of views) {
+      await page.evaluate(({ off, look }) => {
+        const g = window.__game;
+        const p = g.player.position;
+        const V = p.constructor;
+        // Player faces -Z: "front" is at -Z from her.
+        g.rig.frame(new V(p.x + off[0], p.y + off[1], p.z + off[2]), new V(p.x + look[0], p.y + look[1], p.z + look[2]), true);
+        g.simulate(0.6);
+      }, { off, look });
+      await shot(page, name);
+    }
+    // Gameplay camera: idle, aiming, running.
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.rig.endDialogue();
+      g.hud.setVisible(true);
+      g.player.combatActive = true;
+      g.simulate(0.8);
+    });
+    await shot(page, 'm5-gameplay-idle');
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.input.inject('aim', true);
+      g.simulate(0.6);
+    });
+    await shot(page, 'm5-gameplay-aim');
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.input.inject('aim', false);
+      g.input.injectMove(0, 1);
+      g.simulate(0.53);
+    });
+    await shot(page, 'm5-gameplay-run');
+    await page.close();
+  },
+
   async fight() {
     const page = await open('section=2&autostart=1&manual=1&debug=1&god=1');
     // Walk into encounter A and watch the AI for a while.

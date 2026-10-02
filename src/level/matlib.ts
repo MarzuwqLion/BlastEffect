@@ -44,7 +44,7 @@ export function createMaterials(caustics: boolean): Record<MatName, THREE.Materi
     neonGold: neonMaterial(0xffc04a, 3),
     neonRed: neonMaterial(0xff3020, 3),
     neonGreen: neonMaterial(0x40ff9a, 2.8),
-    neonWhite: neonMaterial(0xfff4e0, 2.6),
+    neonWhite: neonMaterial(0xfff4e0, 1.8),
     neonViolet: neonMaterial(0xa060ff, 3),
     windowWarm: neonMaterial(0xffc890, 1.15),
     windowCool: neonMaterial(0xbfe6ff, 1.0),

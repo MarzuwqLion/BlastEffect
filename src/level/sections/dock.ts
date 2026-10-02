@@ -40,7 +40,7 @@ export const dock: SectionDef = {
     roof.position.y = 1.62;
     train.add(body, stripe, roof);
     for (let i = 0; i < 9; i++) {
-      const win = new THREE.Mesh(new THREE.BoxGeometry(3.25, 0.7, 1.6), m.neonWhite);
+      const win = new THREE.Mesh(new THREE.BoxGeometry(3.25, 0.7, 1.6), m.windowCool);
       win.position.set(0, 0.4, -12 + i * 3);
       train.add(win);
     }

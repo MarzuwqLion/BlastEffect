@@ -31,7 +31,7 @@ Status legend: `[x]` done, `[ ]` not yet, `[~]` partially done (see note).
   (detonators), combo explosion with hit-stop, shake, flash, sound.
   *Accept:* combo unit tests; combo works on every enemy type once
   defenses are stripped (scripted Playwright check).
-- [ ] **M5 Protagonist.** Code-built Imani from docs/protagonist.md:
+- [x] **M5 Protagonist.** Code-built Imani from docs/protagonist.md:
   rigid-skinned armor segments, curls, camo shader, SMG with live red
   readout, slung rifle. Core clips (idle, run, sprint, aim, fire, dash,
   jump, hover, cast, hit react, death) + procedural layers (aim offset,
@@ -79,6 +79,18 @@ Status legend: `[x]` done, `[ ]` not yet, `[~]` partially done (see note).
   dodgeable bolts with at most 3 attack tokens in use. Fixes found by the
   runs: nav grid needs one physics step before building; avatar matrices
   must update even when a frame isn't rendered.
+
+- M5: Imani lives in `src/character/protagonist/` behind the Avatar
+  interface (`src/character/types.ts`). Rigid-skinned body (one draw call)
+  with shader digital camo, sculpted head with lids/irises/brows, instanced
+  curls (count per quality), SMG with a live 7-segment readout, rifle slung
+  down her left side. Clips in `clips.ts`, blended in two layers by
+  AnimationMixer; weapon stances + two-bone arm IK put the hands on the gun;
+  foot planting, aim offset, recoil, breathing, blink, talk, look-at are
+  procedural. Extras done early: reload (hand to mag, mag drops), melee
+  strike, a cast pose per power, low/high cover poses.
+  Checked with `node scripts/shots.mjs closeup anims` against
+  docs/protagonist.md (front, face, back, hands, pose sheet m5-poses.png).
 
 ## Notes for a fresh session
 

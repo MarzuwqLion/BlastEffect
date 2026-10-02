@@ -94,6 +94,8 @@ export class Game {
   menus!: Menus;
   debug!: DebugOverlay;
   private sun!: THREE.DirectionalLight;
+  /** Soft light between the camera and Imani so she always reads. */
+  private charLight!: THREE.PointLight;
   private last = 0;
   private dialogueNpc: Npc | null = null;
   private titleT = 0;
@@ -143,6 +145,8 @@ export class Game {
     this.sun.shadow.bias = -0.0006;
     this.sun.shadow.normalBias = 0.03;
     this.scene.add(this.sun, this.sun.target);
+    this.charLight = new THREE.PointLight(0xfff0e0, 2.2, 6, 1.6);
+    this.scene.add(this.charLight);
     this.scene.environment = this.buildEnvironment();
     globalUniforms.uCaustics.value = q.caustics ? 1 : 0;
     progress(0.2);
@@ -473,6 +477,10 @@ export class Game {
     this.lights.update(realDt);
     globalUniforms.uTime.value += simDt || realDt * 0.3;
     this.dome.update(realDt, this.rig.camera.position);
+    // Fill light: between the camera and her chest, a little above.
+    this.avatar.chestWorld(_v3);
+    this.charLight.position.copy(this.rig.camera.position).lerp(_v3, 0.45);
+    this.charLight.position.y += 0.9;
     // Shadow camera follows the player.
     this.sun.position.set(p.position.x + 18, p.position.y + 50, p.position.z + 12);
     this.sun.target.position.copy(p.position);
