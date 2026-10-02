@@ -102,6 +102,8 @@ export class Menus {
 
   private show(screen: Screen): void {
     this.graceUntil = performance.now() + 250;
+    // The key that opened this screen must not also activate it.
+    this.game.input.clearTaps();
     if (this.current && this.current !== screen) this.current.el.classList.remove('show');
     this.current = screen;
     screen.el.classList.add('show');
@@ -263,6 +265,13 @@ export class Menus {
       { kind: 'button', label: UI.retry, action: onRetry },
       { kind: 'button', label: UI.quit, action: onQuit },
     ], { footer: `<div class="note">${UI.deathBody}</div>` });
+    s.focus = 0;
+    this.show(s);
+  }
+
+  /** A one-button notice (e.g. the GPU dropped the WebGL context). */
+  showNotice(title: string, body: string, button: string, action: () => void): void {
+    const s = this.build('notice', 'dim', title, [{ kind: 'button', label: button, action }], { footer: `<div class="note">${body}</div>` });
     s.focus = 0;
     this.show(s);
   }

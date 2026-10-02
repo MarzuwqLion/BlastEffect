@@ -90,13 +90,24 @@ do, the workflow's build job still passes but the deploy job fails with
 - **Scripted checks** (headless Chromium via Playwright; build first):
   `npm run build && npm run shots -- <scenario>`. Screenshots go to
   `docs/screenshots/`, and any console errors fail the run. Scenarios:
-  `sections` (every section, draw calls and triangles), `playthrough`
+  `boot` (real-time start from the title screen, as a player would:
+  fails if the camera doesn't follow Imani), `sections` (every section,
+  draw calls and triangles), `playthrough`
   (a bot plays title to end screen; `PAD=1` drives it through a simulated
   gamepad), `boss`, `combat` (time to kill and combos per enemy type),
   `movement`, `camera`, `cover`, `gamepad`, `dialogue`, `title`,
   `closeup`, `anims`, `fight`, `tour`.
 - **Console:** `window.__game` exposes the running game (for example
   `__game.player.teleport({x:0,y:9,z:-290})` or `__game.simulate(2)`).
+
+## If the screen goes black
+
+The quality setting is saved in the browser. If a preset is too much for
+your GPU, the game steps post-processing down by itself; if the GPU drops
+the WebGL context entirely, you get a "Graphics reset" notice and the
+saved quality is lowered for the next load. To force a preset for one
+load, add `?quality=low` (or `medium`) to the URL, then change it in
+Settings. The browser console (F12) shows any shader or WebGL errors.
 
 ## Tuning
 

@@ -93,6 +93,8 @@ export const UI = {
   paused: 'Paused',
   clickToResume: 'Click to resume',
   deathTitle: 'Flatlined',
+  gpuLostTitle: 'Graphics reset',
+  gpuLostBody: 'Your graphics card dropped the game view (usually too much for it at this quality). Quality is now {quality}. Reload to carry on.',
   deathBody: 'Shields down, vitals gone. The Reach keeps its own.',
   retry: 'Retry from checkpoint',
   endTitle: 'Accounts Closed',

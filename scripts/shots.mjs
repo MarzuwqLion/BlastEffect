@@ -1100,6 +1100,8 @@ const run = {
     }
     const startState = await page.evaluate(() => window.__game.state);
     console.log(`[${tag}] after title:`, startState);
+    const camMode = await page.evaluate(() => window.__game.rig.mode);
+    if (camMode !== 'gameplay') errors.push(`[${tag}] camera still in ${camMode} mode after Start`);
     await page.evaluate(BOT, pad);
     const seen = new Set();
     let last = null;
@@ -1120,6 +1122,42 @@ const run = {
     console.log(`[${tag}] end`, JSON.stringify(end));
     await page.evaluate(() => { window.__game.skipRender = false; window.__game.step(1 / 60); });
     await shot(page, `m9-${tag}-end`);
+    await page.close();
+  },
+
+  // Boot like a player: real-time frame loop (no manual stepping), title ->
+  // press a key -> Start -> walk. Fails if the camera isn't following her.
+  async boot() {
+    const page = await browser.newPage({ viewport: { width: 400, height: 240 } });
+    page.on('console', (m) => { if (m.type() === 'error') errors.push(`[boot] ${m.text()}`); });
+    page.on('pageerror', (e) => errors.push(`[boot] ${e.message}`));
+    await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
+    await page.goto('http://localhost:4173/BlastEffect/?quality=low');
+    await page.waitForFunction(() => window.__game && window.__game.state !== 'loading', null, { timeout: 120000 });
+    await page.evaluate(() => { window.__game.params.automation = false; });
+    await page.waitForTimeout(1000);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(1200);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(2500);
+    const start = await page.evaluate(() => ({ state: window.__game.state, z: window.__game.player.position.z }));
+    await page.keyboard.down('KeyW');
+    await page.waitForTimeout(3000);
+    await page.keyboard.up('KeyW');
+    await page.waitForTimeout(500);
+    const r = await page.evaluate(() => {
+      const g = window.__game;
+      const p = g.player.position;
+      const cam = g.rig.camera;
+      const v = p.clone();
+      v.y += 1.1;
+      v.project(cam);
+      return { state: g.state, mode: g.rig.mode, moved: 0, camDist: +cam.position.distanceTo(p).toFixed(2), onScreen: Math.abs(v.x) < 1 && Math.abs(v.y) < 1 && v.z < 1, z: p.z };
+    });
+    r.moved = +(start.z - r.z).toFixed(2);
+    console.log('boot', JSON.stringify({ start: start.state, ...r }));
+    await shot(page, 'boot-walk');
+    if (r.state !== 'playing' || r.mode !== 'gameplay' || r.camDist > 6 || !r.onScreen || r.moved < 2) errors.push(`[boot] camera/start check failed: ${JSON.stringify(r)}`);
     await page.close();
   },
 

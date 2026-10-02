@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CONFIG, type QualityLevel } from '../config';
 import { MASK, Physics, makeRayHit } from '../core/Physics';
+import { UI } from '../strings';
 import { Renderer } from '../core/Renderer';
 import { GameTime } from '../core/time';
 import { EventBus } from '../core/events';
@@ -205,6 +206,14 @@ export class Game {
     this.renderer.canvas.addEventListener('click', () => {
       if (this.state === 'playing' || this.state === 'dialogue') this.input.requestPointerLock();
     });
+    this.renderer.onContextLost(() => {
+      // Step quality down so a reload doesn't hit the same wall.
+      const lower: QualityLevel = settings.value.quality === 'high' ? 'medium' : 'low';
+      settings.set('quality', lower);
+      this.state = 'paused';
+      this.input.exitPointerLock();
+      this.menus.showNotice(UI.gpuLostTitle, UI.gpuLostBody.replace('{quality}', lower), UI.reload, () => location.reload());
+    });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && (this.state === 'playing' || this.state === 'dialogue')) this.pause();
     });
@@ -290,7 +299,9 @@ export class Game {
     this.menus.hide();
     this.hud.setVisible(true);
     this.state = 'playing';
+    // Cut straight to the gameplay camera behind her.
     this.rig.endDialogue();
+    this.rig.snap(this.player.position, this.player.yaw);
     this.input.requestPointerLock();
     this.director.setMusic(this.director.section(this.director.current).def.music);
     this.director.onGameStart();
@@ -443,7 +454,9 @@ export class Game {
       case 'title':
         this.menus.pollAnyKey();
         this.menus.update();
-        this.titleCamera(realDt);
+        // Start may have been chosen just now; the title shot must not run
+        // again or it leaves the camera parked on the title view.
+        if (this.state === 'title') this.titleCamera(realDt);
         break;
       case 'playing': {
         if (input.pressed('pause')) {

@@ -21,6 +21,11 @@ export class Renderer {
   private qualityListeners: ((q: QualityConfig, level: QualityLevel) => void)[] = [];
   /** Draw calls and triangles of the last frame, across all passes. */
   readonly frameStats = { calls: 0, triangles: 0 };
+  /** Post-processing fallbacks taken because this GPU rejected a render target. */
+  postFallback: 0 | 1 | 2 | 3 = 0;
+  private verifyPost = false;
+  private readonly lostListeners: (() => void)[] = [];
+  contextLost = false;
 
   constructor(
     private readonly container: HTMLElement,
@@ -44,6 +49,12 @@ export class Renderer {
     this.renderer.domElement.id = 'game-canvas';
     this.renderer.domElement.tabIndex = 0;
     container.appendChild(this.renderer.domElement);
+    // A GPU reset (too much memory, driver timeout) blanks the canvas; tell the game.
+    this.renderer.domElement.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      this.contextLost = true;
+      for (const l of this.lostListeners) l();
+    });
     window.addEventListener('resize', () => this.resize());
     this.applyQuality();
     this.resize();
@@ -55,6 +66,10 @@ export class Renderer {
 
   onQualityChange(l: (q: QualityConfig, level: QualityLevel) => void): void {
     this.qualityListeners.push(l);
+  }
+
+  onContextLost(l: () => void): void {
+    this.lostListeners.push(l);
   }
 
   setQuality(level: QualityLevel): void {
@@ -81,12 +96,18 @@ export class Renderer {
     this.composer?.dispose();
     this.composer = null;
     this.bloom = null;
-    if (q.bloom) {
+    // Fallback ladder for GPUs that reject a target: 1 = no MSAA, 2 = also
+    // 8-bit colour, 3 = no post-processing at all.
+    if (q.bloom && this.postFallback < 3) {
       const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+      const ext = this.renderer.extensions;
+      const halfFloat = ext.has('EXT_color_buffer_float') || ext.has('EXT_color_buffer_half_float');
+      const msaa = q.antialias && this.postFallback < 1 ? Math.min(4, this.renderer.capabilities.maxSamples) : 0;
       const rt = new THREE.WebGLRenderTarget(Math.max(1, size.x), Math.max(1, size.y), {
-        type: THREE.HalfFloatType,
-        samples: q.antialias ? 4 : 0,
+        type: halfFloat && this.postFallback < 2 ? THREE.HalfFloatType : THREE.UnsignedByteType,
+        samples: msaa,
       });
+      this.verifyPost = true;
       this.composer = new EffectComposer(this.renderer, rt);
       this.renderPass = new RenderPass(this.scene, this.camera);
       this.composer.addPass(this.renderPass);
@@ -118,8 +139,32 @@ export class Renderer {
     this.renderer.info.reset();
     if (this.composer) this.composer.render();
     else this.renderer.render(this.scene, this.camera);
+    if (this.verifyPost && this.composer) this.checkPostTargets();
     this.frameStats.calls = this.renderer.info.render.calls;
     this.frameStats.triangles = this.renderer.info.render.triangles;
+  }
+
+  /**
+   * After the first frame with a new post chain, make sure the GPU accepted
+   * its render targets. Some (integrated GPUs, some drivers) refuse
+   * multisampled or half-float targets and the screen just goes black; step
+   * down the fallback ladder instead.
+   */
+  private checkPostTargets(): void {
+    this.verifyPost = false;
+    const gl = this.renderer.getContext();
+    const targets = [this.composer!.renderTarget1, this.composer!.renderTarget2];
+    let ok = true;
+    for (const rt of targets) {
+      this.renderer.setRenderTarget(rt);
+      if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) ok = false;
+    }
+    this.renderer.setRenderTarget(null);
+    if (ok || this.postFallback >= 3) return;
+    this.postFallback = (this.postFallback + 1) as 1 | 2 | 3;
+    console.warn(`Post-processing render target rejected by this GPU; fallback level ${this.postFallback}.`);
+    this.applyQuality();
+    this.resize();
   }
 
   setScene(scene: THREE.Scene, camera: THREE.PerspectiveCamera): void {

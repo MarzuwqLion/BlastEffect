@@ -118,6 +118,13 @@ export class Input {
     this.pressedEdge[idx(a)] = 0;
   }
 
+  /** Forget key/button taps not yet consumed (a menu just opened on that key). */
+  clearTaps(): void {
+    this.codesTapped.clear();
+    this.injectedTap.fill(0);
+    this.stickTap = null;
+  }
+
   /** Automation hooks used by the Playwright scripts and debug API. */
   inject(a: Action, down: boolean): void {
     this.injected[idx(a)] = down ? 1 : 0;

@@ -146,6 +146,18 @@ Status legend: `[x]` done, `[ ]` not yet, `[~]` partially done (see note).
   aim should land near the 3-4 minute target. Low/high presets render
   without errors (club: low 169 calls / 149k tris, high 243 / 370k).
 
+- Post-M9 fixes from the first real play test: pressing Start ran the
+  title camera once more in the same frame, leaving the camera parked on
+  the title shot (Imani off-screen, looked like no movement). Every scripted
+  run had masked it: they stepped frames manually and the first
+  conversation reset the camera. Fixed, the camera now cuts behind her on
+  Start, and the new `boot` scenario starts in real time from the title and
+  fails if the camera isn't following. Menus also drop the keypress that
+  opened them. High quality: pixel ratio capped at 1.5; post-processing
+  checks its render targets and falls back (no MSAA, 8-bit, no post) if
+  the GPU rejects them; a lost WebGL context shows a notice and lowers the
+  saved quality.
+
 ## Done checklist (from the brief)
 
 - [x] Completable start to finish with keyboard/mouse and with gamepad

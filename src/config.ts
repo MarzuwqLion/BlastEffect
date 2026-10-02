@@ -588,7 +588,9 @@ export const CONFIG = {
       fogDensity: 0.02,
     },
     high: {
-      pixelRatioMax: 2,
+      // 2x on high-DPI laptop screens with MSAA and bloom is too much for
+      // many integrated GPUs; 1.5 keeps it sharp.
+      pixelRatioMax: 1.5,
       antialias: true,
       shadows: true,
       shadowMapSize: 2048,
