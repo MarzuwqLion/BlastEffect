@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { levelMaterial, neonMaterial } from '../render/materials';
 import {
   awningTexture, lapisTexture, metalTexture, plasterTexture, reliefTexture, sandstoneTexture,
-  streetTextures, tileTexture, windowTexture, woodTexture,
+  screenTexture, streetTextures, tileTexture, windowTexture, woodTexture,
 } from './textures';
 
 export type MatName =
@@ -52,7 +52,7 @@ export function createMaterials(caustics: boolean): Record<MatName, THREE.Materi
     pickupGlow: neonMaterial(0xfff0d0, 1.1),
     windowCool: new THREE.MeshBasicMaterial({ map: windowTexture(false, 53), color: new THREE.Color(1.15, 1.15, 1.15) }),
     glowGlyph: new THREE.MeshBasicMaterial({ map: glyph, color: new THREE.Color(1.6, 1.6, 1.6), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
-    screen: new THREE.MeshBasicMaterial({ color: new THREE.Color(0.06, 0.3, 0.42) }),
+    screen: new THREE.MeshBasicMaterial({ map: screenTexture(), color: new THREE.Color(1.3, 1.3, 1.3) }),
     water: new THREE.MeshStandardMaterial({ color: 0x0b3a4a, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.85, envMapIntensity: 2 }),
   };
   return m;

@@ -32,7 +32,7 @@ bindings live in one table: `src/input/bindings.ts`.
 | Interact / talk | E | X |
 | Swap weapon | Tab | Y |
 | Swap shoulder | X | D-pad left |
-| Pause | Esc | Start |
+| Pause | Esc | Menu (Start) |
 | Debug overlay | ` (backtick) | |
 
 Nothing is bound to Ctrl, so Ctrl+W can't close the tab mid-fight. Cover is

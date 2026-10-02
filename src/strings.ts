@@ -67,6 +67,16 @@ export const SIGNS = {
   basin: 'THE BASIN',
   arrivals: 'ARRIVALS',
   closed: 'LAST TRAIN 02:40',
+  /** The dock office terminal: a header, then [destination, status] rows. */
+  board: {
+    title: 'DOCK OFFICE',
+    rows: [
+      ['SURFACE LINE', 'SUSPENDED'],
+      ['REACH LOOP', 'ON TIME'],
+      ['KEMET GARDENS', 'DELAYED'],
+      ['FREIGHT 7', 'HELD'],
+    ] as [string, string][],
+  },
 };
 
 export const UI = {

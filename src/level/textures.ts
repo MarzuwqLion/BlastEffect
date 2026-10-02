@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SIGNS } from '../strings';
 
 /**
  * Procedural canvas textures for the level: sandstone courses, lapis,
@@ -460,5 +461,36 @@ export function windowTexture(warm: boolean, seed = 31): THREE.CanvasTexture {
   }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/** Dock office terminal: a dim departures list with scanlines. */
+export function screenTexture(): THREE.CanvasTexture {
+  const [c, g] = canvas(320, 192);
+  g.fillStyle = '#031019';
+  g.fillRect(0, 0, 320, 192);
+  g.fillStyle = '#0b2a3a';
+  g.fillRect(0, 0, 320, 34);
+  g.font = 'bold 20px monospace';
+  g.textBaseline = 'middle';
+  g.fillStyle = '#ffc04a';
+  g.fillText(SIGNS.board.title, 12, 18);
+  g.font = '16px monospace';
+  SIGNS.board.rows.forEach(([dest, status], i) => {
+    const y = 56 + i * 32;
+    g.fillStyle = '#7fd8ff';
+    g.fillText(dest, 12, y);
+    g.fillStyle = status === 'ON TIME' ? '#5affa0' : status === 'DELAYED' ? '#ffc04a' : '#ff5a4a';
+    g.textAlign = 'right';
+    g.fillText(status, 308, y);
+    g.textAlign = 'left';
+    g.fillStyle = 'rgba(127,216,255,0.12)';
+    g.fillRect(12, y + 14, 296, 1);
+  });
+  // Scanlines.
+  g.fillStyle = 'rgba(0,0,0,0.28)';
+  for (let y = 0; y < 192; y += 3) g.fillRect(0, y, 320, 1);
+  const t = tex(c);
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
   return t;
 }
