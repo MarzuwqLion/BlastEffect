@@ -3,6 +3,7 @@ import { CONFIG } from '../config';
 import { LevelBuilder, type Door, type LightAnchor, type Pickup, type Trigger } from '../level/LevelBuilder';
 import { NavGrid } from '../level/nav';
 import type { SectionDef, EncounterDef, NpcDef } from '../level/sections/types';
+import type { LoopId } from '../audio/manifest';
 import { dock } from '../level/sections/dock';
 import { strip } from '../level/sections/strip';
 import { club } from '../level/sections/club';
@@ -324,6 +325,8 @@ export class Director {
       this.game.lights.assign(this.game.rig.camera.position);
     }
 
+    this.updateSoundscape(dt);
+
     // Boss arena flow.
     if (this.current === 5 && !this.bossStarted && !this.bossDone && p.position.z < -289 && p.alive && this.game.state === 'playing') {
       this.bossStarted = true;
@@ -358,7 +361,8 @@ export class Director {
     this.spawnWave(enc);
     enc.def.onStart?.(this);
     this.game.events.emit('encounterStart', enc.def.id);
-    this.setMusic(this.current === 5 ? 'boss' : 'combat');
+    // The club's sound system dies the moment the shooting starts.
+    this.setMusic(this.current === 5 ? 'boss' : 'combat', { cut: this.musicCue === 'club' });
   }
 
   private spawnWave(enc: EncounterRuntime): void {
@@ -483,9 +487,9 @@ export class Director {
     }
   }
 
-  setMusic(cue: string): void {
+  setMusic(cue: string, opts: { cut?: boolean } = {}): void {
     this.musicCue = cue;
-    this.game.audio.setMusic(cue as never);
+    this.game.audio.setMusic(cue as never, opts);
   }
 
   /** Dialogue events land here. */
@@ -518,6 +522,29 @@ export class Director {
         this.game.showEnd();
         break;
     }
+  }
+
+  private readonly loopLevels = new Map<LoopId, number>();
+
+  /** Ambient beds: the dome hum for the current section plus nearby sound spots. */
+  private updateSoundscape(dt: number): void {
+    const levels = this.loopLevels;
+    for (const k of levels.keys()) levels.set(k, 0);
+    const def = this.section(this.current).def;
+    levels.set('dome', def.dome ?? 0.6);
+    const p = this.game.player.position;
+    const fighting = this.game.player.combatActive;
+    for (const s of this.sections) {
+      if (Math.abs(s.def.index - this.current) > 1) continue;
+      for (const spot of s.def.soundscape ?? []) {
+        if (spot.quietInCombat && fighting) continue;
+        const d = Math.hypot(p.x - spot.at[0], (p.y - spot.at[1]) * 2, p.z - spot.at[2]);
+        const k = d <= spot.inner ? 1 : Math.max(0, 1 - (d - spot.inner) / (spot.radius - spot.inner));
+        levels.set(spot.loop, Math.max(levels.get(spot.loop) ?? 0, k * spot.level));
+      }
+    }
+    void dt;
+    for (const [id, v] of levels) this.game.audio.setLoop(id, this.game.state === 'end' ? 0 : v);
   }
 
   /** The Crocodile is down: the fight is over, the outro follows. */

@@ -349,9 +349,23 @@ export class Player {
       }
     }
     this.airTime = this.grounded ? 0 : this.airTime + dt;
+
+    // Footsteps: one per stride, longer strides when sprinting.
+    const sp = Math.hypot(this.velocity.x, this.velocity.z);
+    if (this.grounded && this.alive && sp > 0.8 && this.dashT <= 0) {
+      this.stepAcc += sp * dt;
+      const stride = sp > 7 ? 1.75 : sp > 4.8 ? 1.4 : 1.0;
+      if (this.stepAcc >= stride) {
+        this.stepAcc -= stride;
+        this.game.audio.play('footstep', { volume: Math.min(1, 0.35 + sp / 10), rate: sp > 7 ? 1.05 : 1 });
+      }
+    } else if (this.grounded) {
+      this.stepAcc = 0.6;
+    }
   }
 
   private lastVy = 0;
+  private stepAcc = 0;
 
   /** Runs the character controller with the current velocity. */
   private move(dt: number): void {

@@ -98,7 +98,7 @@ export const UI = {
   deathBody: 'Shields down, vitals gone. The Reach keeps its own.',
   retry: 'Retry from checkpoint',
   endTitle: 'Accounts Closed',
-  endCredits: 'Neo Atlantis: Hathor\'s Reach. An MVP. Thanks for playing.',
+  endCredits: 'Neo Atlantis: Hathor\'s Reach. Thanks for playing.<br>Music: "Void" by dancramp (CC BY 4.0), "Eastern Arctic Dubstep" by VishwaJai and "Desert Loop" by iamoneabe (CC0). Sound: Kenney, Lentikula, the Free Firearm Sound Library and Freesound contributors (CC0). Full list in CREDITS.md.',
   playAgain: 'Play again',
   sensitivity: 'Look sensitivity',
   invertY: 'Invert Y',

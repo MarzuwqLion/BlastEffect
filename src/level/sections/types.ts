@@ -1,7 +1,7 @@
 import type { EnemyKind } from '../../enemies/EnemyModel';
 import type { NavBounds } from '../nav';
 import type { LevelBuilder } from '../LevelBuilder';
-import type { MusicCue } from '../../audio/manifest';
+import type { LoopId, MusicCue } from '../../audio/manifest';
 import type { Director } from '../../game/Director';
 import type { Game } from '../../game/Game';
 
@@ -42,6 +42,18 @@ export interface NpcDef {
   available?: (d: Director) => boolean;
 }
 
+/** A looping bed heard near a point (crowd in the market, the sea at a window). */
+export interface SoundSpot {
+  loop: LoopId;
+  at: [number, number, number];
+  /** Full level inside `inner`, fading to silence at `radius`. */
+  inner: number;
+  radius: number;
+  level: number;
+  /** Silent while a fight is on (the crowd has scattered). */
+  quietInCombat?: boolean;
+}
+
 export interface SectionDef {
   index: number;
   name: string;
@@ -50,6 +62,9 @@ export interface SectionDef {
   enter: [number, number, number, number, number, number];
   nav: NavBounds;
   music: MusicCue;
+  /** Level of the dome's undersea hum here (0 indoors, ~1 by the glass). */
+  dome?: number;
+  soundscape?: SoundSpot[];
   /** Hemisphere ambient for this section: sky colour, ground colour, intensity. */
   ambient?: [number, number, number];
   objective: string;

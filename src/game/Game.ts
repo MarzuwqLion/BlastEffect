@@ -424,6 +424,14 @@ export class Game {
     this.boss.setTalking(!speakerIsImani);
   }
 
+  /** Continuous sounds that follow the player's state. */
+  private updateLoops(): void {
+    const p = this.player;
+    this.audio.setLoop('hoverJets', p.alive && p.hovering ? 1 : 0);
+    const low = CONFIG.player.healthMax * CONFIG.feel.lowHealthFraction;
+    this.audio.setLoop('heartbeat', p.alive && p.health < low ? 0.55 + 0.45 * (1 - p.health / low) : 0);
+  }
+
   // ---- Frame loop ----
 
   run(): void {
@@ -471,6 +479,7 @@ export class Game {
         this.bolts.update(dt);
         this.physics.step(dt);
         this.director.update(dt);
+        this.updateLoops();
         break;
       }
       case 'dialogue':

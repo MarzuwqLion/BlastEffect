@@ -15,6 +15,7 @@ export const strip: SectionDef = {
   enter: [-13, -1, -42, 13, 12, -150],
   nav: { minX: -13, maxX: 13, minZ: -152, maxZ: -40, minY: -1, maxY: 6 },
   music: 'explore',
+  dome: 0.5,
   ambient: [0x3a7a9a, 0x24121c, 0.8],
   objective: OBJECTIVES.strip1,
   markers: { a: [0, 1.5, -80], b: [0, 1.5, -125], door: [0, 2, -150] },
