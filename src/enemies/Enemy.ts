@@ -7,10 +7,12 @@ import type { CoverPoint } from '../level/cover';
 import type { Game } from '../game/Game';
 import { EnemyModel, type EnemyKind, type EnemyVisual } from './EnemyModel';
 
+const GREN = CONFIG.explosives.grenade;
+
 export type EnemyState =
   | 'inactive' | 'spawning' | 'idle' | 'move' | 'cover'
   | 'telegraph' | 'fire' | 'stagger' | 'lifted' | 'falling'
-  | 'flung' | 'getup' | 'stomp' | 'dead';
+  | 'flung' | 'getup' | 'stomp' | 'throw' | 'dead';
 
 const AI = CONFIG.ai;
 const FLIP = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
@@ -69,10 +71,15 @@ export class Enemy {
   protected burstLeft = 0;
   protected burstT = 0;
   telegraphT = 0;
+  /** Length of the current wind-up (longer against a diver's trick, see tryAttack). */
+  private telegraphTotal = 1;
   protected los = false;
   protected distToPlayer = 99;
   protected spawnGrace = 0;
   protected stompCd = 0;
+  /** Grunts' grenade: own cooldown, and whether this throw has left the hand. */
+  protected grenadeCd = 0;
+  private thrown = false;
   protected moveSpeed = 2;
   protected aimBlend = 0;
   protected crouchBlend = 0;
@@ -260,6 +267,7 @@ export class Enemy {
     this.hasToken = false;
     this.barT = 0;
     this.stompCd = 2;
+    this.grenadeCd = 5 + Math.random() * 5;
     this.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
     this.body.setEnabled(true);
     this.setPhysicsMode('kinematic');
@@ -449,6 +457,7 @@ export class Enemy {
     this.attackCd -= dt;
     this.spawnGrace -= dt;
     this.stompCd -= dt;
+    this.grenadeCd -= dt;
 
     switch (this.state) {
       case 'spawning':
@@ -578,7 +587,7 @@ export class Enemy {
       this.thinkT = this.cfg.thinkInterval * (0.8 + Math.random() * 0.4);
       this.updateLos();
       if (!this.alerted && (this.los && this.distToPlayer < AI.alertRadius)) this.alerted = true;
-      if (this.alerted && player.alive && this.state !== 'telegraph' && this.state !== 'fire' && this.state !== 'stomp') this.think();
+      if (this.alerted && player.alive && this.state !== 'telegraph' && this.state !== 'fire' && this.state !== 'stomp' && this.state !== 'throw') this.think();
     }
 
     switch (this.state) {
@@ -599,6 +608,9 @@ export class Enemy {
         break;
       case 'stomp':
         this.updateStomp(dt);
+        break;
+      case 'throw':
+        this.updateThrow(dt);
         break;
     }
     this.moveKinematic(dt, false);
@@ -843,6 +855,19 @@ export class Enemy {
 
   protected tryAttack(): void {
     if (!this.alerted || this.attackCd > 0 || this.spawnGrace > 0) return;
+    if (this.kind === 'grunt' && this.grenadeCd <= 0 && this.game.explosives.canThrow(this.position)) {
+      if (Math.random() < GREN.chance) {
+        // She's dug in: lob one over to flush her out.
+        this.grenadeCd = GREN.cooldown;
+        this.releaseToken();
+        this.thrown = false;
+        this.setState('throw');
+        this.game.director.bark(this.kind, 'grenade', 1);
+        this.game.audio.play('enemyCharge', { at: this.position, volume: 0.5 });
+        return;
+      }
+      this.grenadeCd = 2;
+    }
     const player = this.game.player;
     if (!player.alive || !this.los) return;
     if (this.distToPlayer > this.cfg.weapon.range) return;
@@ -852,7 +877,12 @@ export class Enemy {
     }
     this.hasToken = true;
     this.setState('telegraph');
-    this.telegraphT = Math.max(this.cfg.weapon.telegraph, AI.minTelegraph);
+    let wind = Math.max(this.cfg.weapon.telegraph, AI.minTelegraph);
+    // Bas's advice: the crew are bad at looking up. Hovering above them
+    // buys a slower wind-up.
+    if (player.hovering && player.position.y - this.position.y > 1.5 && this.game.director.flags.has('heard_grandmother')) wind *= CONFIG.tuning.lookUpTelegraphScale;
+    this.telegraphT = wind;
+    this.telegraphTotal = wind;
     this.game.audio.play(this.kind === 'heavy' ? 'heavyWindup' : 'enemyCharge', { at: this.position, volume: 0.7 });
   }
 
@@ -863,7 +893,7 @@ export class Enemy {
     this.velocity.x *= 1 - Math.min(1, dt * 6) * (1 - moveK);
     this.velocity.z *= 1 - Math.min(1, dt * 6) * (1 - moveK);
     this.game.player.aimPoint(this.aimTarget);
-    const total = Math.max(this.cfg.weapon.telegraph, AI.minTelegraph);
+    const total = this.telegraphTotal;
     this.game.fx.telegraphLine(this, this.model.muzzleWorld(_v), this.aimTarget, 1 - this.telegraphT / total);
     if (this.kind === 'heavy') this.model.spinUp(dt * 30 * (1 - this.telegraphT / total));
     if (this.stateT > 0.25 && Math.floor(this.stateT * 4) !== Math.floor((this.stateT - dt) * 4)) this.updateLos();
@@ -919,6 +949,22 @@ export class Enemy {
     this.game.audio.play(this.kind === 'heavy' ? 'heavyShot' : this.kind === 'trooper' ? 'trooperShot' : 'gruntShot', { at: muzzle, volume: 0.55 });
   }
 
+  private updateThrow(dt: number): void {
+    this.velocity.multiplyScalar(0.8);
+    if (!this.thrown && this.stateT >= GREN.windup) {
+      this.thrown = true;
+      const p = this.game.player.position;
+      _v2.set(p.x + (Math.random() - 0.5) * 1.2, p.y + 0.15, p.z + (Math.random() - 0.5) * 1.2);
+      this.model.headWorld(_v).y += 0.35;
+      this.game.explosives.throw(_v, _v2, this);
+      this.game.audio.play('meleeSwing', { at: this.position, volume: 0.6 });
+    }
+    if (this.stateT >= GREN.windup + 0.4) {
+      this.attackCd = Math.max(this.attackCd, 1.2);
+      this.setState(this.coverPoint && !this.hasGoal ? 'cover' : 'move');
+    }
+  }
+
   private updateStomp(dt: number): void {
     const S = CONFIG.heavyStomp;
     this.velocity.multiplyScalar(0.8);
@@ -968,7 +1014,7 @@ export class Enemy {
   protected updateFacing(dt: number): void {
     let target = this.yaw;
     const pp = this.game.player.position;
-    const facePlayer = this.alerted && (this.los || this.state === 'telegraph' || this.state === 'fire' || this.state === 'cover' || this.distToPlayer < 15);
+    const facePlayer = this.alerted && (this.los || this.state === 'telegraph' || this.state === 'fire' || this.state === 'throw' || this.state === 'cover' || this.distToPlayer < 15);
     if (facePlayer) {
       target = Math.atan2(-(pp.x - this.position.x), -(pp.z - this.position.z));
     } else if (Math.hypot(this.velocity.x, this.velocity.z) > 0.5) {
@@ -1000,7 +1046,7 @@ export class Enemy {
       const pulse = 0.6 + Math.sin(this.game.time.now * 10) * 0.25;
       this.model.setGlow(0.25, 0.95, 1.0, pulse);
     } else if (this.state === 'telegraph') {
-      const total = Math.max(this.cfg.weapon.telegraph, AI.minTelegraph);
+      const total = this.telegraphTotal;
       this.model.setGlow(1, 0.35, 0.1, (1 - this.telegraphT / total) * 0.9);
     } else if (this.state === 'stomp') {
       this.model.setGlow(1, 0.45, 0.1, Math.min(1, this.stateT / CONFIG.heavyStomp.telegraph));
@@ -1043,6 +1089,7 @@ export class Enemy {
       : this.state === 'lifted' ? 'lifted'
       : this.state === 'stagger' || this.state === 'getup' ? 'stagger'
       : this.state === 'stomp' ? 'stomp'
+      : this.state === 'throw' ? 'throw'
       : 'normal';
     let pitch = 0;
     if (this.alerted) {
@@ -1058,7 +1105,7 @@ export class Enemy {
       crouch: this.crouchBlend,
       pitch,
       mode,
-      modeT: this.state === 'stomp' ? Math.min(1, this.stateT / CONFIG.heavyStomp.telegraph) : this.stateT,
+      modeT: this.state === 'stomp' ? Math.min(1, this.stateT / CONFIG.heavyStomp.telegraph) : this.state === 'throw' ? this.stateT / GREN.windup : this.stateT,
       spin: 0,
     });
   }

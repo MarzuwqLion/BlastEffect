@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { SIGNS, OBJECTIVES, NAMES } from '../../strings';
 import { hologram, neonSign, obelisk, pylon, reflectionCard } from '../kit';
 import type { SectionDef } from './types';
+import { buildGlass } from './zones';
 
 /**
  * Section 1: Reach Station, the transit dock. Safe area: the contact,
@@ -11,14 +12,34 @@ export const dock: SectionDef = {
   index: 1,
   name: NAMES.station,
   checkpoint: { x: -5, y: 0, z: -3, yaw: 0 },
-  enter: [-14, -2, 6, 14, 12, -38],
-  nav: { minX: -12, maxX: 14, minZ: -44, maxZ: 4, minY: -2, maxY: 8 },
+  enter: [-14, -2, 6, 36, 12, -38],
+  nav: { minX: -12, maxX: 36, minZ: -44, maxZ: 4, minY: -2, maxY: 8 },
   music: 'dock',
   dome: 0.9,
   ambient: [0x3a8aa0, 0x1a1210, 0.85],
   objective: OBJECTIVES.dockTalk,
   encounters: [],
-  npcs: [{ id: 'odette', x: 4.6, y: 0, z: -11.2, yaw: Math.PI * 0.62, dialogue: 'dock' }],
+  npcs: [
+    { id: 'odette', x: 4.6, y: 0, z: -11.2, yaw: Math.PI * 0.62, dialogue: 'dock' },
+    { id: 'bas', x: 32.2, y: 0, z: -22.4, yaw: -Math.PI / 2, dialogue: 'diver' },
+  ],
+  zones: [
+    {
+      id: 'glass',
+      name: NAMES.glass,
+      box: [15, -1, -14, 35.5, 8, -36],
+      music: 'gallery',
+      dome: 1.2,
+      nudge: { box: [9.5, -1, -15, 14.2, 6, -34], text: OBJECTIVES.optGlass },
+    },
+  ],
+  soundscape: [{ loop: 'deepSea', at: [30, 1, -25], inner: 6, radius: 15, level: 0.85 }],
+  crowds: [
+    // Travellers off the last train, and two dockhands passing the time.
+    { area: [-8, -3, 6, -36], y: 0, count: 6, seed: 3 },
+    { area: [-7.6, -6.5, -6.4, -8.5], y: 0, count: 2, seed: 5, mood: 'chat' },
+    { area: [23, -15.5, 26, -17], y: 0, count: 2, seed: 7, mood: 'chat' },
+  ],
   markers: { odette: [4.6, 2.2, -11.2], gate: [1, 2, -40] },
   build(b, game) {
     const m = game.mats;
@@ -62,10 +83,14 @@ export const dock: SectionDef = {
     // Back wall and east wall.
     b.box(2, 0, 5, 26, 10, 1, { mat: m.lapis });
     b.box(2, 10, 5, 27, 0.6, 1.6, { mat: m.gold, collide: false });
-    b.box(14.5, 0, -18, 1, 10, 46, { mat: m.relief });
+    // East wall, with the opening to the Glass at z -22.5..-27.5.
+    b.box(14.5, 0, -8.75, 1, 10, 27.5, { mat: m.relief });
+    b.box(14.5, 0, -34.25, 1, 10, 13.5, { mat: m.relief });
+    b.box(14.5, 4.5, -25, 1, 5.5, 5, { mat: m.relief });
     b.box(14, 10, -18, 1.8, 0.5, 46, { mat: m.gold, collide: false });
     // Lapis panels with glyph glow on the east wall.
     for (let z = -4; z > -38; z -= 8) {
+      if (z === -28) continue;
       b.box(13.95, 1.5, z, 0.1, 5, 3, { mat: m.lapis, collide: false });
       b.box(13.9, 1.2, z, 0.12, 0.08, 3.2, { mat: m.neonCyan, collide: false, shadow: false });
       b.box(13.9, 6.6, z, 0.12, 0.08, 3.2, { mat: m.neonCyan, collide: false, shadow: false });
@@ -136,7 +161,10 @@ export const dock: SectionDef = {
     b.box(13.4, 0, -40.5, 1.6, 12, 4, { mat: m.sandstoneDark });
     // Bounds.
     b.blocker(2, 0, 6.5, 30, 14, 1);
-    b.blocker(15.4, 0, -18, 1, 14, 50);
+    b.blocker(15.4, 0, -7.75, 1, 14, 29.5);
+    b.blocker(15.4, 0, -35.25, 1, 14, 15.5);
+    b.blocker(15.4, 4.5, -25, 1, 9.5, 5);
+    buildGlass(b, game);
     b.light(1, 9, -36, 0x30e0ff, 8, 14);
     b.light(-2, 6, -18, 0xff9a50, 3, 18);
   },

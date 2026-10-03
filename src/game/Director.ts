@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config';
-import { LevelBuilder, type Door, type LightAnchor, type Pickup, type Trigger } from '../level/LevelBuilder';
+import { LevelBuilder, type Door, type HoloLog, type LightAnchor, type Pickup, type Trigger } from '../level/LevelBuilder';
 import { NavGrid } from '../level/nav';
-import type { SectionDef, EncounterDef, NpcDef } from '../level/sections/types';
+import type { SectionDef, EncounterDef, NpcDef, ZoneDef } from '../level/sections/types';
+import { Civilian } from '../character/Civilian';
 import type { LoopId } from '../audio/manifest';
 import { dock } from '../level/sections/dock';
 import { strip } from '../level/sections/strip';
@@ -12,7 +13,7 @@ import { basin } from '../level/sections/basin';
 import type { Game } from './Game';
 import type { Enemy } from '../enemies/Enemy';
 import type { Flag, DialogueEvent } from '../dialogue/types';
-import { BARKS, BOSS_BARKS, ENEMY_NAMES, NAMES, OBJECTIVES, UI } from '../strings';
+import { BARKS, BOSS_BARKS, ENEMY_NAMES, MARI_LETTER, MARI_LOGS, NAMES, OBJECTIVES, UI } from '../strings';
 import { Npc } from '../character/Npc';
 import type { WeaponId } from '../character/types';
 
@@ -73,6 +74,15 @@ export class Director {
   /** The intro plays once; retries after a death skip it. */
   bossIntroSeen = false;
   private lightTimer = 0;
+  readonly allLogs: HoloLog[] = [];
+  /** Mari's recordings found (kept through deaths). */
+  readonly logsFound = new Set<string>();
+  readonly civilians: Civilian[] = [];
+  private zone: ZoneDef | null = null;
+  readonly discovered = new Set<string>();
+  private letterPending = false;
+  /** Dialogue choices that stick even when a death rolls the flags back. */
+  private static readonly STICKY: Flag[] = ['tuned_ka', 'tuned_shield', 'heard_grandmother', 'asked_bas_mari', 'mari_letter', 'all_logs', 'met_bas', 'met_nef', 'met_kwame', 'met_merit', 'intel_shifts'];
   private readonly tmp = new THREE.Vector3();
   musicCue: string = 'dock';
 
@@ -99,6 +109,10 @@ export class Director {
         });
       }
       for (const n of def.npcs ?? []) this.npcs.push(new Npc(this.game, n));
+      this.allLogs.push(...b.logs);
+      for (const c of def.crowds ?? []) {
+        for (let i = 0; i < c.count; i++) this.civilians.push(new Civilian(this.game, c, def.index, i, group));
+      }
     }
     this.game.enemies.onEnemyDeath((e) => this.onEnemyDeath(e));
     // Scene queries only see colliders after a step; nav building raycasts.
@@ -135,6 +149,7 @@ export class Director {
     }
     if (index > 1) this.openDoor('dockGate', true);
     if (index > 2) this.openDoor('clubDoor', true);
+    if (index > 2) this.openDoor('soukShutter', true);
     if (index > 3) this.openDoor('clubExit', true);
     if (index > 4) this.openDoor('basinGate', true);
     this.openDoor('basinSeal', true);
@@ -153,7 +168,8 @@ export class Director {
     // Pre-build the next section's nav in the background.
     if (index < SECTIONS.length) setTimeout(() => this.ensureNav(index + 1), 300);
     s.def.onEnter?.(this);
-    this.setMusic(s.def.music === 'combat' ? 'explore' : s.def.music);
+    this.zone = null;
+    this.setMusic(this.ambientMusic());
     if (!silent) {
       this.saveCheckpoint();
       this.game.hud.toast(`${UI.checkpoint}: ${s.def.name}`);
@@ -187,12 +203,17 @@ export class Director {
     if (!cp) return;
     this.game.enemies.clear();
     this.game.bolts.clear();
+    this.game.explosives.reset(cp.section);
     this.game.fx.clear();
     this.game.cover.clearClaims();
     this.game.boss?.reset();
     this.bossStarted = false;
+    const sticky = Director.STICKY.filter((f) => this.flags.has(f));
     this.flags.clear();
     cp.flags.forEach((f) => this.flags.add(f));
+    sticky.forEach((f) => this.flags.add(f));
+    this.applyTuning();
+    for (const c of this.civilians) if (c.section >= cp.section) c.reset();
     for (const enc of this.encounters) {
       enc.state = cp.cleared.includes(enc.def.id) ? 'cleared' : 'idle';
       enc.wave = 0;
@@ -211,7 +232,8 @@ export class Director {
     this.game.rig.snap(this.game.player.position, def.checkpoint.yaw);
     this.game.player.combatActive = false;
     def.onEnter?.(this);
-    this.setMusic(def.music === 'combat' ? 'explore' : def.music);
+    this.zone = null;
+    this.setMusic(this.ambientMusic());
     for (const n of this.npcs) n.reset();
   }
 
@@ -266,7 +288,7 @@ export class Director {
     if (this.bossStarted && !this.bossDone) combat = true;
     p.combatActive = combat;
     if (combat && this.musicCue !== 'combat' && this.musicCue !== 'boss') this.setMusic('combat');
-    if (!combat && this.musicCue === 'combat') this.setMusic('explore');
+    if (!combat && this.musicCue === 'combat') this.setMusic(this.ambientMusic());
 
     // Doors.
     for (const d of this.allDoors.values()) {
@@ -325,6 +347,16 @@ export class Director {
       this.game.lights.assign(this.game.rig.camera.position);
     }
 
+    this.updateZones();
+    this.updateLogs();
+    const cam = this.game.rig.camera.position;
+    for (const c of this.civilians) {
+      if (Math.abs(c.section - this.current) <= 1) c.update(dt, cam);
+    }
+    if (this.letterPending && this.game.state === 'playing') {
+      this.letterPending = false;
+      this.game.hud.showLog(MARI_LETTER.title, MARI_LETTER.text);
+    }
     this.updateSoundscape(dt);
 
     // Boss arena flow.
@@ -361,6 +393,7 @@ export class Director {
     this.spawnWave(enc);
     enc.def.onStart?.(this);
     this.game.events.emit('encounterStart', enc.def.id);
+    this.alarm(enc.section, true);
     // The club's sound system dies the moment the shooting starts.
     this.setMusic(this.current === 5 ? 'boss' : 'combat', { cut: this.musicCue === 'club' });
   }
@@ -368,7 +401,8 @@ export class Director {
   private spawnWave(enc: EncounterRuntime): void {
     const w = enc.def.waves[enc.wave];
     if (!w) return;
-    for (const s of w.spawns) {
+    const drop = w.fewerWith && this.flags.has(w.fewerWith.flag as Flag) ? w.fewerWith.drop : 0;
+    for (const s of w.spawns.slice(0, w.spawns.length - drop)) {
       const pp = this.game.player.position;
       const yaw = s.yaw ?? Math.atan2(-(pp.x - s.x), -(pp.z - s.z));
       const e = this.game.enemies.spawn(s.kind, this.tmp.set(s.x, s.y, s.z), yaw, enc.section, { alerted: true, delay: s.delay });
@@ -400,7 +434,8 @@ export class Director {
       enc.def.onClear?.(this);
       this.game.events.emit('encounterClear', enc.def.id);
       this.game.audio.play('objective');
-      this.setMusic('explore');
+      this.alarm(enc.section, false);
+      this.setMusic(this.ambientMusic());
     }
   }
 
@@ -437,6 +472,11 @@ export class Director {
   }
 
   // ---- API for sections and dialogue ----
+
+  /** A short message in the toast line. */
+  note(text: string): void {
+    this.game.hud.toast(text);
+  }
 
   openDoor(id: string, instant = false): void {
     const d = this.allDoors.get(id);
@@ -516,6 +556,28 @@ export class Director {
         this.setMusic('boss');
         this.setObjective(OBJECTIVES.boss, 'boss');
         break;
+      case 'leviathanPass':
+        this.game.leviathan.pass();
+        break;
+      case 'nefMeal':
+        this.game.player.heal(CONFIG.player.healthMax);
+        this.game.player.shield = this.game.player.shieldMax;
+        this.game.hud.toast(UI.nefMeal);
+        this.game.audio.play('pickupHealth');
+        break;
+      case 'tuneKa':
+      case 'tuneShield':
+        // The flag was set with the choice; apply it.
+        this.applyTuning();
+        this.game.hud.toast(ev === 'tuneKa' ? UI.tunedKa : UI.tunedShield);
+        this.game.audio.play('castCharge', { volume: 0.6 });
+        break;
+      case 'basAdvice':
+        this.game.hud.toast(UI.basAdvice);
+        break;
+      case 'giveLetter':
+        this.letterPending = true;
+        break;
       case 'endLevel':
         this.bossDone = true;
         this.setMusic('victory');
@@ -531,7 +593,7 @@ export class Director {
     const levels = this.loopLevels;
     for (const k of levels.keys()) levels.set(k, 0);
     const def = this.section(this.current).def;
-    levels.set('dome', def.dome ?? 0.6);
+    levels.set('dome', this.zone?.dome ?? def.dome ?? 0.6);
     const p = this.game.player.position;
     const fighting = this.game.player.combatActive;
     for (const s of this.sections) {
@@ -545,6 +607,71 @@ export class Director {
     }
     void dt;
     for (const [id, v] of levels) this.game.audio.setLoop(id, this.game.state === 'end' ? 0 : v);
+  }
+
+  get zoneId(): string | null {
+    return this.zone?.id ?? null;
+  }
+
+  /** What should play when nothing is being fought: the zone's music, the section's, or after its fight. */
+  ambientMusic(): string {
+    if (this.zone?.music) return this.zone.music;
+    const def = this.section(this.current).def;
+    const started = this.encounters.some((e) => e.section === def.index && e.state !== 'idle');
+    return started ? (def.musicAfter ?? 'explore') : def.music;
+  }
+
+  private updateZones(): void {
+    const p = this.game.player.position;
+    let found: ZoneDef | null = null;
+    for (const s of this.sections) {
+      if (Math.abs(s.def.index - this.current) > 1) continue;
+      for (const z of s.def.zones ?? []) {
+        if (z.nudge && !this.discovered.has(z.id) && !this.shownHints.has(`zone:${z.id}`) && this.game.state === 'playing' && !this.game.player.combatActive && inRange(p, z.nudge.box)) {
+          this.shownHints.add(`zone:${z.id}`);
+          this.note(z.nudge.text);
+        }
+        if (inRange(p, z.box)) found = z;
+      }
+    }
+    if (found === this.zone) return;
+    this.zone = found;
+    if (found && !this.discovered.has(found.id)) {
+      this.discovered.add(found.id);
+      this.game.hud.toast(UI.discovered.replace('{zone}', found.name));
+      this.game.audio.play('objective', { volume: 0.7 });
+    }
+    if (!this.game.player.combatActive && this.musicCue !== 'boss' && this.musicCue !== 'victory') this.setMusic(this.ambientMusic());
+  }
+
+  private updateLogs(): void {
+    const p = this.game.player;
+    if (!p.alive || this.game.state !== 'playing') return;
+    for (const log of this.allLogs) {
+      if (log.found || Math.abs(log.section - this.current) > 1) continue;
+      if (p.position.distanceTo(log.pos) > 1.7) continue;
+      log.found = true;
+      log.mesh.visible = false;
+      this.logsFound.add(log.id);
+      const entry = MARI_LOGS.find((l) => l.id === log.id);
+      this.game.audio.play('holoLog');
+      if (entry) this.game.hud.showLog(entry.title, entry.text, UI.logsCount.replace('{n}', String(this.logsFound.size)).replace('{total}', String(MARI_LOGS.length)));
+      if (this.logsFound.size >= MARI_LOGS.length) this.flags.add('all_logs');
+      this.game.events.emit('logFound', log.id);
+    }
+  }
+
+  /** People in a section react to a fight starting or ending there. */
+  private alarm(section: number, on: boolean): void {
+    for (const c of this.civilians) if (c.section === section) c.alarm(on);
+  }
+
+  /** Kwame's tuning, re-applied from the flags. */
+  applyTuning(): void {
+    const p = this.game.player;
+    p.powers.cooldownScale = this.flags.has('tuned_ka') ? CONFIG.tuning.kaCooldownScale : 1;
+    p.shieldMax = CONFIG.player.shieldMax + (this.flags.has('tuned_shield') ? CONFIG.tuning.shieldBonus : 0);
+    p.shield = Math.min(p.shield, p.shieldMax);
   }
 
   /** The Crocodile is down: the fight is over, the outro follows. */
@@ -566,6 +693,11 @@ export class Director {
 
 function inBox(p: THREE.Vector3, t: Trigger): boolean {
   return p.x >= t.min.x && p.x <= t.max.x && p.y >= t.min.y && p.y <= t.max.y && p.z >= t.min.z && p.z <= t.max.z;
+}
+
+/** Point in an [x0,y0,z0,x1,y1,z1] box (corners in any order). */
+function inRange(p: THREE.Vector3, b: readonly number[]): boolean {
+  return p.x >= Math.min(b[0], b[3]) && p.x <= Math.max(b[0], b[3]) && p.y >= Math.min(b[1], b[4]) && p.y <= Math.max(b[1], b[4]) && p.z >= Math.min(b[2], b[5]) && p.z <= Math.max(b[2], b[5]);
 }
 
 function easeInOut(t: number): number {

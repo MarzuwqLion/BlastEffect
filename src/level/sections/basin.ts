@@ -110,6 +110,11 @@ export const basin: SectionDef = {
     b.pickup('health', 16.5, Y + 3, -290);
     b.pickup('health', -16.5, Y + 3, -322);
     b.pickup('ammo', 0, Y, -296.5);
+    // Ka cells from the harvest, stacked around the lake: lure him past one.
+    b.kaCell(-12.5, Y, -299.5);
+    b.kaCell(12.5, Y, -312.5);
+    b.kaCell(-5.5, Y, -318.8);
+    b.kaCell(5.5, Y, -293.4);
 
     // Columns (high cover).
     for (const [x, z] of [[-9, -289.5], [9, -289.5], [-20, -306], [20, -306], [-9, -322.5], [9, -322.5]] as const) {

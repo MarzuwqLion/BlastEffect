@@ -5,6 +5,7 @@ import type { Game } from '../game/Game';
 import type { Player } from './Player';
 import type { Enemy } from '../enemies/Enemy';
 import type { PowerId } from '../character/types';
+import type { KaCell } from '../combat/Explosives';
 
 const PW = CONFIG.powers;
 export const POWER_ORDER: readonly PowerId[] = ['pull', 'throw', 'charge'];
@@ -31,6 +32,8 @@ const _hit = makeRayHit();
  */
 export class Powers {
   readonly cooldown: Record<PowerId, number> = { pull: 0, throw: 0, charge: 0 };
+  /** Kwame's tuning shortens every cooldown. */
+  cooldownScale = 1;
   private sinceCast = 99;
   private readonly projectiles: Projectile[] = [];
   private pending: { id: PowerId; t: number; target: Enemy | null; aim: THREE.Vector3 } | null = null;
@@ -56,7 +59,7 @@ export class Powers {
 
   /** 0..1 remaining cooldown fraction, for the HUD. */
   cooldownFraction(id: PowerId): number {
-    return this.cooldown[id] / PW[id].cooldown;
+    return this.cooldown[id] / (PW[id].cooldown * this.cooldownScale);
   }
 
   reset(): void {
@@ -117,7 +120,7 @@ export class Powers {
       const hit = this.game.physics.raycast(rig.aimOrigin, rig.aimDir, cfg.range, MASK.playerShot, _hit, this.player.collider);
       aim.copy(hit ? _hit.point : _v.copy(rig.aimOrigin).addScaledVector(rig.aimDir, cfg.range));
     }
-    this.cooldown[id] = cfg.cooldown;
+    this.cooldown[id] = cfg.cooldown * this.cooldownScale;
     this.sinceCast = 0;
     this.casts++;
     this.player.markWeaponOut();
@@ -175,6 +178,8 @@ export class Powers {
       if (travelled < dist) {
         const tag = _hit.tag;
         if (tag && (tag.kind === 'enemy' || tag.kind === 'boss') && tag.owner) hitEnemy = tag.owner as Enemy;
+        // A Lance into a ka cell sets it off.
+        if (tag && tag.kind === 'prop' && tag.owner && p.kind === 'throw') (tag.owner as KaCell).ignite(CONFIG.explosives.cell.chainFuse);
         done = true;
         p.pos.addScaledVector(_dir, travelled);
       } else {

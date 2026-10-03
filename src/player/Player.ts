@@ -45,6 +45,8 @@ export class Player {
   scoped = false;
 
   health = P.healthMax;
+  /** Shield capacity (Kwame's tuning can raise it). */
+  shieldMax: number = P.shieldMax;
   shield = P.shieldMax;
   private shieldDelay = 0;
   alive = true;
@@ -126,7 +128,7 @@ export class Player {
     this.velocity.set(0, 0, 0);
     this.yaw = yaw;
     this.health = P.healthMax;
-    this.shield = P.shieldMax;
+    this.shield = this.shieldMax;
     this.shieldDelay = 0;
     this.alive = true;
     this.coverMode = 'none';
@@ -174,7 +176,7 @@ export class Player {
     // Defenses: shield regenerates after a delay without damage.
     if (this.alive) {
       if (this.shieldDelay > 0) this.shieldDelay -= dt;
-      else if (this.shield < P.shieldMax) this.shield = Math.min(P.shieldMax, this.shield + P.shieldRegenRate * dt);
+      else if (this.shield < this.shieldMax) this.shield = Math.min(this.shieldMax, this.shield + P.shieldRegenRate * dt);
     }
 
     // Camera look.
@@ -589,7 +591,7 @@ export class Player {
     a.swapping = this.weapons.isSwapping;
     a.firing = this.weapons.isFiring;
     a.alive = this.alive;
-    a.hurt = 1 - (this.health + this.shield) / (P.healthMax + P.shieldMax);
+    a.hurt = 1 - (this.health + this.shield) / (P.healthMax + this.shieldMax);
     a.airTime = this.airTime;
     a.ammo = this.weapons.state.mag;
     a.yaw = this.yaw;
@@ -703,7 +705,7 @@ export class Player {
   }
 
   restoreShield(fraction: number): void {
-    this.shield = Math.min(P.shieldMax, this.shield + P.shieldMax * fraction);
+    this.shield = Math.min(this.shieldMax, this.shield + this.shieldMax * fraction);
   }
 
   die(): void {

@@ -2,6 +2,7 @@ import type { EnemyKind } from '../../enemies/EnemyModel';
 import type { NavBounds } from '../nav';
 import type { LevelBuilder } from '../LevelBuilder';
 import type { LoopId, MusicCue } from '../../audio/manifest';
+import type { CrowdDef } from '../../character/Civilian';
 import type { Director } from '../../game/Director';
 import type { Game } from '../../game/Game';
 
@@ -20,6 +21,8 @@ export interface WaveDef {
   whenAliveAtMost?: number;
   delay?: number;
   hint?: string;
+  /** Drop the last `drop` spawns when this flag is set (intel paid off). */
+  fewerWith?: { flag: string; drop: number };
 }
 
 export interface EncounterDef {
@@ -32,7 +35,7 @@ export interface EncounterDef {
 }
 
 export interface NpcDef {
-  id: 'odette' | 'yaw';
+  id: import('../../character/Npc').NpcId;
   x: number;
   y: number;
   z: number;
@@ -54,6 +57,17 @@ export interface SoundSpot {
   quietInCombat?: boolean;
 }
 
+/** An optional area inside a section: its own name, music and ambience. */
+export interface ZoneDef {
+  id: string;
+  name: string;
+  box: [number, number, number, number, number, number];
+  music?: MusicCue;
+  dome?: number;
+  /** A one-time pointer shown when the player is near but hasn't found it yet. */
+  nudge?: { box: [number, number, number, number, number, number]; text: string };
+}
+
 export interface SectionDef {
   index: number;
   name: string;
@@ -65,6 +79,11 @@ export interface SectionDef {
   /** Level of the dome's undersea hum here (0 indoors, ~1 by the glass). */
   dome?: number;
   soundscape?: SoundSpot[];
+  zones?: ZoneDef[];
+  /** People living their lives here (they run or duck when a fight starts). */
+  crowds?: CrowdDef[];
+  /** Music once this section's fight has started or finished (default: explore). */
+  musicAfter?: MusicCue;
   /** Hemisphere ambient for this section: sky colour, ground colour, intensity. */
   ambient?: [number, number, number];
   objective: string;

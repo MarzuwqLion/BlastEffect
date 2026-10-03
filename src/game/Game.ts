@@ -15,9 +15,11 @@ import { createMaterials, type MatName } from '../level/matlib';
 import { createProps, type Props } from '../level/kit';
 import { LightPool } from '../render/LightPool';
 import { Dome } from '../render/Dome';
+import { Leviathan } from '../render/Leviathan';
 import { globalUniforms } from '../render/materials';
 import { EnemyManager } from '../enemies/EnemyManager';
 import { Bolts } from '../enemies/Bolts';
+import { Explosives } from '../combat/Explosives';
 import { Boss } from '../enemies/Boss';
 import { FX } from '../fx/FX';
 import { Combat } from '../combat/Combat';
@@ -86,11 +88,13 @@ export class Game {
   props!: Props;
   lights!: LightPool;
   dome!: Dome;
+  leviathan!: Leviathan;
   player!: Player;
   avatar!: Avatar;
   aimAssist!: AimAssist;
   enemies!: EnemyManager;
   bolts!: Bolts;
+  explosives!: Explosives;
   boss!: Boss;
   fx!: FX;
   combat!: Combat;
@@ -164,11 +168,13 @@ export class Game {
     this.props = createProps(this.mats);
     this.lights = new LightPool(this.scene, q.maxPointLights);
     this.dome = new Dome(this.scene, q.domeLife);
+    this.leviathan = new Leviathan(this.scene);
     this.fx = new FX(this, q.particleScale, q.decals);
     this.fx.setPixelRatio(this.renderer.renderer.getPixelRatio(), window.innerHeight);
     this.combat = new Combat(this);
     this.enemies = new EnemyManager(this);
     this.bolts = new Bolts(this);
+    this.explosives = new Explosives(this);
     this.aimAssist = new AimAssist(this);
     progress(0.35, 'avatar');
     await tick();
@@ -223,7 +229,13 @@ export class Game {
     // Compile shaders up front so the first fight doesn't hitch.
     this.director.startAt(this.params.section);
     this.rig.update(0.016, this.player.position, { aiming: false, scoped: false, sprinting: false, crouched: false });
-    this.renderer.renderer.compile(this.scene, this.rig.camera);
+    // compileAsync waits for the driver to finish linking (parallel shader
+    // compile), so the title screen doesn't crawl for its first seconds.
+    try {
+      await this.renderer.renderer.compileAsync(this.scene, this.rig.camera);
+    } catch {
+      this.renderer.renderer.compile(this.scene, this.rig.camera);
+    }
     progress(1);
     (window as unknown as { __game: Game }).__game = this;
   }
@@ -477,6 +489,7 @@ export class Game {
         this.enemies.update(dt);
         this.boss.update(dt);
         this.bolts.update(dt);
+        this.explosives.update(dt);
         this.physics.step(dt);
         this.director.update(dt);
         this.updateLoops();
@@ -521,6 +534,7 @@ export class Game {
     globalUniforms.uTime.value += simDt || realDt * 0.3;
     this.dome.setIndoors(this.director.current === 3 && this.player.position.z < -152);
     this.dome.update(realDt, this.rig.camera.position);
+    if (this.state !== 'paused') this.leviathan.update(realDt, this.director.zoneId === 'glass');
     // Ambient follows the section (indoors vs out).
     const amb = this.director.section(this.director.current).def.ambient;
     if (amb) {

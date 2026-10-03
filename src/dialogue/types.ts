@@ -3,7 +3,7 @@
  * the text. tests/dialogue.test.ts validates every tree.
  */
 
-export type SpeakerId = 'imani' | 'odette' | 'yaw' | 'croc';
+export type SpeakerId = 'imani' | 'odette' | 'yaw' | 'croc' | 'bas' | 'nef' | 'kwame' | 'merit';
 
 /** Flags set by dialogue and read later (see GameFlags in game/flags.ts). */
 export type Flag =
@@ -14,7 +14,18 @@ export type Flag =
   | 'yaw_left'
   | 'croc_spared'
   | 'croc_shutdown'
-  | 'asked_sister';
+  | 'asked_sister'
+  | 'heard_grandmother'
+  | 'asked_bas_mari'
+  | 'intel_shifts'
+  | 'tuned_ka'
+  | 'tuned_shield'
+  | 'mari_letter'
+  | 'all_logs'
+  | 'met_bas'
+  | 'met_nef'
+  | 'met_kwame'
+  | 'met_merit';
 
 /** Events a dialogue can fire into the game. */
 export type DialogueEvent =
@@ -23,7 +34,13 @@ export type DialogueEvent =
   | 'yawLeaves'
   | 'startBoss'
   | 'endLevel'
-  | 'intelWeakpoint';
+  | 'intelWeakpoint'
+  | 'leviathanPass'
+  | 'nefMeal'
+  | 'tuneKa'
+  | 'tuneShield'
+  | 'giveLetter'
+  | 'basAdvice';
 
 export type Condition =
   | { flag: Flag; is?: boolean }

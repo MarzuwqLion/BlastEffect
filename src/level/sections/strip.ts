@@ -1,7 +1,8 @@
 import * as THREE from 'three';
-import { OBJECTIVES, SIGNS } from '../../strings';
+import { NAMES, OBJECTIVES, SIGNS } from '../../strings';
 import { crateCover, facade, hologram, neonSign, obelisk, planter, pylon, stall } from '../kit';
 import type { SectionDef } from './types';
+import { buildSouk } from './zones';
 
 /**
  * Section 2: the strip. Street fights between clubs and stalls. Encounter A
@@ -12,12 +13,27 @@ export const strip: SectionDef = {
   index: 2,
   name: 'The Strip',
   checkpoint: { x: 1, y: 0, z: -45, yaw: 0 },
-  enter: [-13, -1, -42, 13, 12, -150],
-  nav: { minX: -13, maxX: 13, minZ: -152, maxZ: -40, minY: -1, maxY: 6 },
+  enter: [-13, -1, -42, 44, 12, -150],
+  nav: { minX: -13, maxX: 45, minZ: -152, maxZ: -40, minY: -1, maxY: 6 },
   music: 'explore',
   dome: 0.5,
   ambient: [0x3a7a9a, 0x24121c, 0.8],
   objective: OBJECTIVES.strip1,
+  npcs: [
+    { id: 'nef', x: 38, y: 0, z: -81.5, yaw: 0, dialogue: 'cook' },
+    { id: 'kwame', x: 37, y: 0, z: -104.6, yaw: -Math.PI, dialogue: 'tinker' },
+  ],
+  zones: [{ id: 'souk', name: NAMES.souk, box: [14, -1, -80, 44, 10, -106], music: 'market', dome: 0.4 }],
+  soundscape: [{ loop: 'crowdMarket', at: [29, 1, -93], inner: 8, radius: 22, level: 0.75, quietInCombat: true }],
+  crowds: [
+    // Out on the street when Ka arrives; they bolt for the station at the first shot.
+    { area: [-8, -43, 8, -49], y: 0, count: 5, seed: 11, flee: [1, 0, -34] },
+    { area: [-9.6, -60, -8.6, -64], y: 0.15, count: 2, seed: 13, mood: 'chat', flee: [-2, 0, -34] },
+    // The market: they duck behind the stalls when the street fights start.
+    { area: [17, -86, 41, -100], y: 0, count: 8, seed: 21 },
+    { area: [16, -85.2, 23, -86.4], y: 0, count: 3, seed: 23, mood: 'chat' },
+    { area: [35.5, -84.4, 40.5, -84.4], spots: [[37.4, -84.4], [40.6, -84.4]], y: 0.32, count: 2, seed: 29, mood: 'sit', face: 0 },
+  ],
   markers: { a: [0, 1.5, -80], b: [0, 1.5, -125], door: [0, 2, -150] },
   encounters: [
     {
@@ -43,6 +59,8 @@ export const strip: SectionDef = {
       onStart: (d) => d.hint('cover', 'fire'),
       onClear: (d) => {
         d.setObjective(OBJECTIVES.strip2, 'b');
+        d.openDoor('soukShutter');
+        d.note(OBJECTIVES.optSouk);
       },
     },
     {
@@ -89,8 +107,17 @@ export const strip: SectionDef = {
     ];
     blocks.forEach(([z0, z1, style], i) => {
       facade(b, m, -13, z0, z1, 12 + (i % 2) * 3, -1, style);
-      facade(b, m, 13, z0, z1, 13 + ((i + 1) % 2) * 2, 1, i % 2 ? 'stone' : 'ochre');
+      const h = 13 + ((i + 1) % 2) * 2;
+      const east = i % 2 ? 'stone' : 'ochre';
+      if (z0 === -84) {
+        // The archway into Souk Hathor at z -89..-95.
+        facade(b, m, 13, z0, -89, h, 1, east);
+        facade(b, m, 13, -95, z1, h, 1, east);
+      } else {
+        facade(b, m, 13, z0, z1, h, 1, east);
+      }
     });
+    buildSouk(b, game);
 
     // Signs: clubs and stalls.
     neonSign(b, SIGNS.lotus, -12.4, 5.2, -70, Math.PI / 2, 6, 1.2, '#30a0ff', { groundY: 0.15, glyphs: true });
@@ -129,6 +156,10 @@ export const strip: SectionDef = {
     stall(b, m, 4.6, -85, Math.PI, 'awningTeal', 'neonCyan');
     crateCover(b, p, 8.2, 0.15, -91, 0.6);
     b.pickup('ammo', -10.4, 0.15, -66);
+    // Ka cells stacked by the crew's positions.
+    b.kaCell(-1.6, 0, -82.4);
+    b.kaCell(6.9, 0, -88.4);
+    b.kaCell(-5.6, 0, -94.6);
 
     // Plaza with an obelisk and holograms.
     obelisk(b, m, 0, 0, -97, 9, 1.8);
@@ -159,6 +190,10 @@ export const strip: SectionDef = {
     stall(b, m, -7, -123, 0.05, 'awningTeal', 'neonGold');
     crateCover(b, p, 1.5, 0, -138, 0.5);
     b.pickup('ammo', 10.4, 0.15, -122);
+    b.kaCell(-1.4, 0, -111.6);
+    b.kaCell(4.4, 0, -132.4);
+    b.kaCell(3.6, 0, -133.3);
+    b.kaCell(-8.2, 0, -126.2);
 
     // The Sistrum's frontage: pylon gateway with the club door.
     b.box(-10.5, 0, -151, 5, 14, 2, { mat: m.lapis });

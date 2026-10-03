@@ -712,6 +712,31 @@ export class FX {
     this.dust(_v2, 2);
   }
 
+  /** Ka cell or grenade going off: hot core, shell, ground ring, debris, smoke, scorch. */
+  explosion(center: THREE.Vector3, radius: number, hot: number, cool: number): void {
+    this.flash(center, radius * 1.1, 0.24, hot, this.glowTex);
+    this.flash(center, radius * 0.6, 0.15, 0xfff4d8, this.flashTex);
+    this.boom(center, hot, 80, 0.55);
+    this.wave(center, radius, 0.4, hot);
+    _v.copy(center);
+    this.wave(_v, radius * 1.3, 0.6, cool);
+    _v2.copy(center);
+    const down = this.game.physics.raycast(center, _v3.set(0, -1, 0), 4, MASK.world, this.game.scratchHit);
+    if (down) {
+      _v2.copy(this.game.scratchHit.point);
+      this.decal(this.game.scratchHit.point, this.game.scratchHit.normal, radius * 0.5);
+    } else _v2.y -= 0.5;
+    this.ring(_v2, radius * 1.05, 0.55, hot, 1);
+    _c.setHex(hot);
+    this.burst(center, 80, 12, _c.r * 3, _c.g * 3, _c.b * 3, 0.13, 0.8, 7, 1.4, 2);
+    _c.setHex(cool);
+    this.burst(center, 40, 8, _c.r * 3, _c.g * 3, _c.b * 3, 0.1, 1.0, 3, 1.2, 1);
+    // Chunks thrown high that fall back.
+    this.burst(center, 24, 9, 1.2, 0.7, 0.35, 0.09, 1.4, 14, 0.3, 5);
+    this.smokePuff(center, 14, 1.0, 2.6, 0.16);
+    this.dust(_v2, 2.5);
+  }
+
   /** Big boss slam ring etc. */
   blast(pos: THREE.Vector3, radius: number, color: number): void {
     this.wave(pos, radius, 0.4, color);

@@ -14,6 +14,16 @@ export const NAMES = {
   bartender: 'Yaw Mensah',
   bartenderShort: 'Yaw',
   boss: 'The Crocodile',
+  diver: 'Bastien Okafor',
+  diverShort: 'Bas',
+  cook: 'Nefertari Joseph',
+  cookShort: 'Auntie Nef',
+  tinker: 'Kwame Asante',
+  tinkerShort: 'Kwame',
+  priestess: 'Sister Merit',
+  glass: 'The Glass',
+  souk: 'Souk Hathor',
+  shrine: 'The Shrine of Hathor',
   sister: 'Marisol Cruz',
   sisterShort: 'Mari',
   city: 'Neo Atlantis',
@@ -30,6 +40,10 @@ export const SPEAKERS: Record<SpeakerId, string> = {
   odette: NAMES.contactShort,
   yaw: NAMES.bartenderShort,
   croc: NAMES.boss,
+  bas: NAMES.diverShort,
+  nef: NAMES.cookShort,
+  kwame: NAMES.tinkerShort,
+  merit: NAMES.priestess,
 };
 
 export const WEAPON_NAMES = {
@@ -67,6 +81,12 @@ export const SIGNS = {
   basin: 'THE BASIN',
   arrivals: 'ARRIVALS',
   closed: 'LAST TRAIN 02:40',
+  glass: 'THE GLASS',
+  souk: 'SOUK HATHOR',
+  tinker: 'TINKER',
+  nef: "NEF'S",
+  shrine: 'HATHOR',
+  lanterns: ['SPICE', 'CHARMS', 'KA CELLS', 'FISH', 'SILK', 'TEA'],
   /** The dock office terminal: a header, then [destination, status] rows. */
   board: {
     title: 'DOCK OFFICE',
@@ -130,6 +150,12 @@ export const UI = {
   noAmmo: 'No ammo',
   ammoRefilled: 'Ammo refilled',
   healthRestored: 'Health restored',
+  discovered: 'Found: {zone}',
+  logsCount: '{n} of {total}',
+  nefMeal: 'Fish broth: fully restored',
+  tunedKa: 'Ka-amp tuned: faster power recovery',
+  tunedShield: 'Ka-amp tuned: stronger barrier',
+  basAdvice: "Bas's advice: the crew are slow to aim at you while you hover above them",
   intelWeakpoint: 'Intel: weak point marked on the Crocodile',
   intelRoute: 'Intel: service corridor code',
   skip: 'Skip',
@@ -167,6 +193,8 @@ export const PROMPTS = {
   rifleRange: 'Long sightlines: the rifle shines here. Aim to scope.',
   melee: '{melee} Melee',
   pickup: 'Walk over ammo crates and med kits to use them',
+  kaCell: 'Glowing ka cells explode when shot. Catch the crew standing next to one.',
+  grenade: 'Grenade! Get off the red ring. They throw when you stay in one spot too long.',
 };
 
 export const OBJECTIVES = {
@@ -183,6 +211,32 @@ export const OBJECTIVES = {
   boss: `Take down ${NAMES.boss}`,
   bossWave: 'Deal with the reinforcements',
   ledger: 'Find the ledger behind the throne',
+  optGlass: `Optional: ${NAMES.glass} is through the east wall`,
+  optSouk: `Optional: the shutters are up on ${NAMES.souk}`,
+  optShrine: `Optional: a bridge leads to ${NAMES.shrine}`,
+};
+
+/** Optional areas off the main route. */
+export const ZONES = {
+  glass: NAMES.glass,
+  souk: NAMES.souk,
+  shrine: NAMES.shrine,
+  mariRoom: "Mari's room",
+};
+
+/** Mari's holo-recordings, found along the route. Shown as text (no voice). */
+export const MARI_LOGS: { id: string; title: string; text: string }[] = [
+  { id: 'glass', title: 'Recording 1: First night', text: "Day one. The Reach is louder than the brochures. Odette says the Crocodile owns the night shift. Told her I'd be gone in a week. An old diver showed me the whale. I may stay two." },
+  { id: 'souk', title: 'Recording 2: The souk', text: "Kwame says the Crocodile pays for implants with debt, then collects the debt with knives. People here still haggle over the price of pepper. That's how you know it's a real place." },
+  { id: 'club', title: 'Recording 3: The Sistrum', text: 'Yaw pours with his left hand when he lies. He used his right all night. Good man. Terrible poker player.' },
+  { id: 'room', title: 'Recording 4: The ledger', text: "I've seen the ledger. Two hundred names, and which implant came out of who. Mimi would tell me to get out. Mimi isn't here, so I'm taking photographs." },
+  { id: 'gate', title: 'Recording 5: Last', text: "If you're hearing this, I went up. If you're Mimi: don't be stupid. If you're Mimi and already being stupid: he turns slowly. Get behind him. Shoot the thing on his back." },
+];
+
+/** Mari's letter, left with Sister Merit. */
+export const MARI_LETTER = {
+  title: "Mari's letter",
+  text: "Mimi. If Sister Merit gave you this, I was right about her and wrong about the timing. Don't go up angry. Angry people stand still. Love you. Eat something. M.",
 };
 
 export const SECTION_NAMES = ['', NAMES.station, 'The Strip', NAMES.club, 'The Terraces', NAMES.lair];
@@ -195,6 +249,7 @@ export const BARKS = {
   lost: ['Lost her.', 'Where did she go?'],
   primed: ['Something has me!', 'Get me down!'],
   allyDown: ['Man down.', 'They got Osei.', 'She is not playing.'],
+  grenade: ['Egg over the wall!', 'Fire in the hole.', 'Smoke her out.', 'Catch.'],
 };
 
 /** The Crocodile's lines during the fight, shown as subtitles. */
@@ -413,6 +468,201 @@ export const DIALOGUE: Record<string, DialogueTree> = {
     },
   },
 
+  diver: {
+    id: 'diver',
+    start: 'start',
+    partner: 'bas',
+    nodes: {
+      start: {
+        speaker: 'bas',
+        text: "You're looking at the wrong side of the glass. Everyone does, their first night down.",
+        setFlags: ['met_bas'],
+        choices: [
+          { text: "What's on the right side?", next: 'sea' },
+          { text: 'You come here a lot?', next: 'often' },
+        ],
+      },
+      often: {
+        speaker: 'bas',
+        text: 'Forty years I went out there to patch the dome. Now I come here to make sure it stays patched. Somebody has to look.',
+        next: 'sea',
+      },
+      sea: {
+        speaker: 'bas',
+        text: 'There. Past the kelp lights. Give her a second.',
+        events: ['leviathanPass'],
+        next: 'grandmother',
+      },
+      grandmother: {
+        speaker: 'bas',
+        text: "Grandmother. Older than the dome. She comes by when the city gets loud. She's been coming by a lot.",
+        choices: [
+          { text: 'Did a woman come here? She looks like me.', next: 'mari', setFlags: ['asked_bas_mari'] },
+          { text: 'Why is the city loud?', next: 'croc' },
+        ],
+      },
+      mari: {
+        speaker: 'bas',
+        text: 'Stood where you are, most nights for a week. Said she liked one thing in this city that nobody could buy. Then she stopped coming.',
+        next: 'advice',
+      },
+      croc: {
+        speaker: 'bas',
+        text: "Man up in the Basin buys people's implants off them. The ones who won't sell, he doesn't ask twice.",
+        next: 'advice',
+      },
+      advice: {
+        speaker: 'bas',
+        text: "If you're going up there: his people are bad at looking up. Divers learn to come at things from above.",
+        setFlags: ['heard_grandmother'],
+        events: ['basAdvice'],
+        choices: [
+          { text: "I'll remember that.", next: 'bye' },
+          { text: 'Thanks, Bas.', next: 'bye' },
+        ],
+      },
+      bye: {
+        speaker: 'bas',
+        text: "Go on. I'll keep an eye on the glass.",
+        next: null,
+      },
+    },
+  },
+
+  cook: {
+    id: 'cook',
+    start: 'start',
+    partner: 'nef',
+    nodes: {
+      start: {
+        speaker: 'nef',
+        text: "Sit. You're too thin to be this angry.",
+        setFlags: ['met_nef'],
+        choices: [
+          { text: "I'm not angry.", next: 'notAngry' },
+          { text: "What's good?", next: 'menu' },
+        ],
+      },
+      notAngry: {
+        speaker: 'nef',
+        text: 'Mm. Your jaw disagrees. Eat first, lie after.',
+        next: 'menu',
+      },
+      menu: {
+        speaker: 'nef',
+        text: "Fish broth, extra pepper, no charge. The Crocodile's boys ate here free for three years. You can have one bowl.",
+        events: ['nefMeal'],
+        next: 'crew',
+      },
+      crew: {
+        speaker: 'nef',
+        text: 'They are regulars, you know. Change shift at the top of the terraces, regular as bread. Catch them while the new ones are still on the stairs...',
+        choices: [
+          { text: "When's the next change?", next: 'shifts', setFlags: ['intel_shifts'] },
+          { text: "I'll take them as they come.", next: 'bye' },
+        ],
+      },
+      shifts: {
+        speaker: 'nef',
+        text: "Soon. Go now and there'll be one fewer up top. I counted. I always count.",
+        next: 'bye',
+      },
+      bye: {
+        speaker: 'nef',
+        text: 'Go on. Bring the bowl back.',
+        next: null,
+      },
+    },
+  },
+
+  tinker: {
+    id: 'tinker',
+    start: 'start',
+    partner: 'kwame',
+    nodes: {
+      start: {
+        speaker: 'kwame',
+        text: "That's a prototype ka-amp. On your neck. In this district. Bold.",
+        setFlags: ['met_kwame'],
+        choices: [
+          { text: 'Can you tune it?', next: 'tune' },
+          { text: "Don't touch it.", next: 'noTouch' },
+        ],
+      },
+      noTouch: {
+        speaker: 'kwame',
+        text: 'Was not going to. Not without asking. Unlike some people up the hill.',
+        next: 'tune',
+      },
+      tune: {
+        speaker: 'kwame',
+        text: 'I can push it one way. Faster recovery on your ka, or a thicker barrier. Not both, the casing would cook.',
+        choices: [
+          { text: 'Faster recovery.', next: 'done', setFlags: ['tuned_ka'], events: ['tuneKa'] },
+          { text: 'Thicker barrier.', next: 'done', setFlags: ['tuned_shield'], events: ['tuneShield'] },
+          { text: 'Leave it as it is.', next: 'leave' },
+        ],
+      },
+      done: {
+        speaker: 'kwame',
+        text: "There. Don't thank me. Your sister paid in advance. She said someone might come.",
+        next: null,
+      },
+      leave: {
+        speaker: 'kwame',
+        text: "Suit yourself. It's good work as it is.",
+        next: null,
+      },
+    },
+  },
+
+  priestess: {
+    id: 'priestess',
+    start: 'start',
+    partner: 'merit',
+    nodes: {
+      start: {
+        speaker: 'merit',
+        text: 'Hathor is the lady of music and drunkenness. Also of the sky. We offer whichever is needed tonight.',
+        setFlags: ['met_merit'],
+        choices: [
+          { text: "I'm looking for Mari Cruz.", next: 'mari' },
+          { text: 'Which do I need?', next: 'which' },
+        ],
+      },
+      which: {
+        speaker: 'merit',
+        text: 'Looking at you? The sky. Something to look up at.',
+        next: 'mari',
+      },
+      mari: {
+        speaker: 'merit',
+        text: 'Her room is up the stairs. She paid a year ahead. I kept it the way she left it, which was badly.',
+        next: 'letter',
+      },
+      letter: {
+        speaker: 'merit',
+        text: "She left this with me. 'For whoever comes with my face.' I didn't read it. I'm not a saint; I just didn't have the time.",
+        setFlags: ['mari_letter'],
+        events: ['giveLetter'],
+        choices: [
+          { text: 'Thank you.', next: 'bye' },
+          { text: 'Why help me?', next: 'why' },
+        ],
+      },
+      why: {
+        speaker: 'merit',
+        text: 'Because the Basin was ours before he drained it. The lake is supposed to be full.',
+        next: 'bye',
+      },
+      bye: {
+        speaker: 'merit',
+        text: "Go on up. Light a lamp if you like. She'd laugh at you.",
+        next: null,
+      },
+    },
+  },
+
   bossIntro: {
     id: 'bossIntro',
     start: 'start',
@@ -551,5 +801,11 @@ export const END_TEXT: { flag?: string; not?: string; text: string }[] = [
   { flag: 'yaw_left', text: 'Yaw Mensah is on the first train out. Odette gives him the window seat.' },
   { flag: 'yaw_met', not: 'yaw_left', text: 'Yaw Mensah reopens the Sistrum a week later. He pours the first drink for an empty stool.' },
   { flag: 'promised_odette', text: 'Odette meets the last train in. She does not ask about the promise. Imani does not make her.' },
+  { flag: 'heard_grandmother', text: 'Bas Okafor tells the Glass about a woman who came at things from above. Grandmother comes by the next night and stays a while.' },
+  { flag: 'met_nef', text: "Auntie Nef keeps a bowl back at the counter, extra pepper. It's there when Imani comes down." },
+  { flag: 'tuned_ka', text: "Kwame keeps the casing he swapped out of Imani's ka-amp in a jar by the till, next to her sister's." },
+  { flag: 'tuned_shield', text: "Kwame keeps the casing he swapped out of Imani's ka-amp in a jar by the till, next to her sister's." },
+  { flag: 'mari_letter', text: "Sister Merit lights a lamp in the empty room above the shrine. Someone has to; the Basin is supposed to be full." },
+  { flag: 'all_logs', text: 'Imani has all five of the recordings. She plays the last one twice, then never again.' },
   { text: "Imani keeps the last page. The handwriting is her sister's, and it is, for once, the final word." },
 ];

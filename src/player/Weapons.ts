@@ -5,6 +5,8 @@ import type { Game } from '../game/Game';
 import type { Player } from './Player';
 import type { WeaponId } from '../character/types';
 import type { Enemy } from '../enemies/Enemy';
+import { zoneDamage } from '../combat/damage';
+import type { Shootable } from '../combat/Explosives';
 
 export interface WeaponState {
   cfg: WeaponConfig;
@@ -251,6 +253,11 @@ export class Weapons {
       const tag = hitData.tag;
       if (tag && (tag.kind === 'enemy' || tag.kind === 'boss') && tag.owner) {
         this.game.combat.weaponHit(tag.owner as Enemy, c, tag.zone ?? 'body', hitData.point, this.dir, hitData.normal);
+      } else if (tag && tag.kind === 'prop' && tag.owner) {
+        (tag.owner as Shootable).shot(zoneDamage(c, 'body'), hitData.point);
+        this.game.fx.impact(hitData.point, hitData.normal, 'metal', c.id === 'rifle' ? 1.6 : 1);
+        this.game.audio.play('hitArmor', { at: hitData.point, volume: 0.5 });
+        this.game.hud.hitMarker('armor', false, false);
       } else {
         this.game.fx.impact(hitData.point, hitData.normal, tag?.surface ?? 'stone', c.id === 'rifle' ? 1.6 : 1);
         this.game.audio.play(c.id === 'rifle' ? 'impactHeavy' : 'impact', { at: hitData.point, volume: 0.5 });

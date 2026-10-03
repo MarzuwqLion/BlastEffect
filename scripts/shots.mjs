@@ -1135,11 +1135,22 @@ const run = {
     await page.goto('http://localhost:4173/BlastEffect/?quality=low');
     await page.waitForFunction(() => window.__game && window.__game.state !== 'loading', null, { timeout: 120000 });
     await page.evaluate(() => { window.__game.params.automation = false; });
-    await page.waitForTimeout(1000);
+    // Like a player: wait until the title is actually on screen and moving
+    // (software GL can take a while to link shaders), then press a key, wait
+    // for the menu, then Start.
+    const fps = () => page.evaluate(async () => {
+      const info = window.__game.renderer.renderer.info.render;
+      const f0 = info.frame;
+      await new Promise((r) => setTimeout(r, 1000));
+      return info.frame - f0;
+    });
+    for (let i = 0; i < 30 && (await fps()) < 2; i++);
     await page.keyboard.press('Enter');
-    await page.waitForTimeout(1200);
+    await page.waitForFunction(() => document.querySelectorAll('.screen.show .menu .item').length > 0, null, { timeout: 30000 }).catch(() => {});
+    await page.waitForTimeout(600);
     await page.keyboard.press('Enter');
-    await page.waitForTimeout(2500);
+    await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 30000 }).catch(() => {});
+    await page.waitForTimeout(1500);
     const start = await page.evaluate(() => ({ state: window.__game.state, z: window.__game.player.position.z }));
     await page.keyboard.down('KeyW');
     await page.waitForTimeout(3000);

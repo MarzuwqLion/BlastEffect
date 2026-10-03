@@ -3,10 +3,13 @@
 A single-level third-person shooter for the browser. You play Imani Cruz,
 who has come down to an undersea domed city looking for her sister. The
 level runs from the train dock, up the neon strip, through a nightclub and
-over the terraces to the Crocodile's drained sacred lake. It takes about
-15 minutes. The combat is cover, two guns and three ka powers that combo
-off each other. Built with three.js, Rapier and TypeScript. Every model,
-texture, sound and line of music is generated in code.
+over the terraces to the Crocodile's drained sacred lake, with three
+optional places off the route and people to talk to along the way. It
+takes 15-25 minutes. The combat is cover, two guns and three ka powers that
+combo off each other, plus ka cells to blow up and grenades to dodge.
+Built with three.js, Rapier and TypeScript. Every model and texture is
+built in code; music and sound effects are CC0/CC-BY recordings (see
+[CREDITS.md](CREDITS.md)).
 
 **Play:** https://marzuwqlion.github.io/BlastEffect/ (after the one-time
 Pages setup below).
@@ -44,6 +47,39 @@ The settings menu (from the title screen or pause) has look sensitivity,
 invert Y, master/music/SFX volume, quality (low/medium/high), text size
 and aim assist (gamepad only, on by default). Losing pointer lock pauses
 the game.
+
+## Off the main path
+
+Three optional areas, each with its own music, ambience and someone to
+talk to. A toast names each place the first time you walk in.
+
+| Place | Where | Who | What you get |
+| --- | --- | --- | --- |
+| **The Glass** | Through the opening in the dock's east wall | Bas Okafor, retired dome diver | A window onto the open sea. Ask him and Grandmother, an old leviathan, swims past. His advice makes the crew slower to aim at you while you hover above them. |
+| **Souk Hathor** | Shutters on the strip's east side open after the first fight | Auntie Nef (noodle counter), Kwame (implant tinker) | Nef feeds you (full health and barrier) and tips you off about the terrace shift change (one fewer enemy up top). Kwame tunes your ka-amp: faster power recovery or a thicker barrier. |
+| **The Shrine of Hathor** | Bridge off the west side of the middle terrace | Sister Merit | A rooftop temple garden and Mari's rented room. Merit gives you a letter Mari left. |
+
+![The Glass, Souk Hathor and the Shrine of Hathor](docs/screenshots/zones.jpg)
+![Bas, Auntie Nef, Kwame and Sister Merit](docs/screenshots/people.jpg)
+
+Mari's five holo-recordings are hidden in these places and along the
+route (the Glass, the souk, behind the club's bar, Mari's room, by the
+Basin gate). Everything you do here carries into the ending text, and
+the dialogue choices that matter survive a death.
+
+People live in the Reach: travellers at the dock, shoppers on the strip
+and in the market, dancers in the club, worshippers at the shrine. When
+a fight starts they run for an exit or duck behind the stalls, and get
+up again when it's over.
+
+**Ka cells** (dark canisters with a glowing cyan band) are stacked around
+the crew's positions. Shoot one, hit it with a Lance or catch it in a ka
+burst: it hisses for a moment, then blows, flinging anyone nearby and
+setting off other cells. Stray enemy fire can set one off too, so don't
+hide behind them. **Grenades:** grunts lob one if you sit behind the same
+cover too long. It beeps and marks a red ring where it will go off.
+
+![A grenade's danger ring, then a ka cell going up under three grunts](docs/screenshots/explosives.jpg)
 
 ## Running locally
 
@@ -128,34 +164,41 @@ screen. The dialogue trees are validated by `tests/dialogue.test.ts`
 (no dead ends, no missing or unreachable nodes, no loops without an exit,
 and at least one choice sets a flag that pays off later).
 
-## Swapping audio
+## Audio
 
-Every sound effect and music cue goes through **`src/audio/manifest.ts`**.
-Without a file, each entry plays a placeholder synthesized at startup
-(`src/audio/synth.ts` for effects, `src/audio/music.ts` for the
-procedural score). To use a recording, put it in `public/audio/` and set
-`src` on the entry:
+Every sound effect, music cue and ambience bed goes through
+**`src/audio/manifest.ts`**. The files in `public/audio/` were cut from
+CC0 and CC-BY packs by `scripts/audio/process.py` (trim, silence removal,
+layering, loudness matching, seamless loop points, MP3); sources and
+licences are in [CREDITS.md](CREDITS.md). To rebuild them, download the
+packs listed there into one folder and run
+`python3 scripts/audio/process.py <folder>` (needs ffmpeg).
+
+To swap a sound, put a file in `public/audio/` and point the entry at it
+(`src` takes one path or a list of variants picked at random):
 
 ```ts
-smgShot: { src: 'audio/smg.ogg', volume: 0.7, pitchVar: 0.05, voices: 6 },
-// ...
-boss: { src: 'audio/boss-theme.ogg' },
+smgShot: { src: ['audio/sfx/smg1.mp3', 'audio/sfx/smg2.mp3'], bus: 'sfx', volume: 0.7, pitchVar: 0.05, voices: 6 },
 ```
 
-The path is relative to the site root. The entry keeps its volume, pitch
-variation and voice limit, and files load at startup.
+An entry without `src` (or whose file fails to load) falls back to a
+placeholder synthesized at startup (`src/audio/synth.ts`, and
+`src/audio/music.ts` for the score). Music and ambience stream and
+crossfade; each section and optional area picks its cue in its
+definition under `src/level/sections/`.
 
 ## Performance
 
-On the medium preset each section draws 120-245 draw calls and about
-270-320k triangles from any view (budget: under 500 and 1.5M). Most of
+On the medium preset each section draws 140-320 draw calls and about
+270-430k triangles from its checkpoint view (budget: under 500 and 1.5M). Most of
 that comes from merging level geometry per material in 60 m chunks,
 instancing props, drawing only the current section and its neighbours,
 a fixed pool of point lights that move to the nearest light anchors (so
 shaders never recompile), pooled enemies, bolts and particles, and one
-skinned draw call per character. The low preset turns off shadows,
-bloom and caustics, halves hair density and particles, uses fewer point
-lights and lowers the pixel ratio.
+skinned draw call per character (the crowds are culled with their
+section and by distance; ka cells are three instanced meshes in total).
+The low preset turns off shadows, bloom and caustics, halves hair density
+and particles, uses fewer point lights and lowers the pixel ratio.
 
 ## Project layout
 
@@ -165,11 +208,11 @@ src/
   core/                   physics (Rapier), renderer, time, settings, events
   input/                  input map and device handling (keyboard/mouse, gamepad)
   player/                 controller, camera rig, weapons, powers, aim assist
-  character/              Imani (built from docs/protagonist.md) and the NPCs
+  character/              Imani (built from docs/protagonist.md), the NPCs and the crowds
   enemies/                crew AI, models, bolts, the Crocodile boss
-  combat/                 damage layers, combos, feedback
-  level/                  level builder, materials, kit, nav grid, cover, sections
-  render/                 shader chunks, dome and sea life, light pool
+  combat/                 damage layers, combos, feedback, ka cells and grenades
+  level/                  level builder, materials, kit, nav grid, cover, sections (zones.ts: the optional areas)
+  render/                 shader chunks, dome and sea life, the leviathan, light pool
   fx/, audio/, ui/        effects, synthesized audio, HUD/menus/dialogue
   dialogue/               dialogue types and validator
   game/                   game state machine and level director

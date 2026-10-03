@@ -122,6 +122,7 @@ export const MUSIC = {
   market: { src: 'audio/music/market.mp3', volume: 0.7 },
   gallery: { src: 'audio/music/gallery.mp3', volume: 0.75 },
   heist: { src: 'audio/music/heist.mp3', volume: 0.75 },
+  shrine: { src: 'audio/music/shrine.mp3', volume: 0.75 },
 } satisfies Record<string, MusicEntry>;
 
 export type MusicCue = keyof typeof MUSIC;

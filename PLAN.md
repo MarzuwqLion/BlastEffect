@@ -158,14 +158,43 @@ Status legend: `[x]` done, `[ ]` not yet, `[~]` partially done (see note).
   the GPU rejects them; a lost WebGL context shows a notice and lowers the
   saved quality.
 
+- Real audio: CC0/CC-BY music, effects and ambience cut by
+  `scripts/audio/process.py` (credits in CREDITS.md); footsteps, hover
+  jets and a low-health heartbeat; music per section and zone.
+
+- Content pass after the second play test ("functional and fun"):
+  - Three optional zones (`src/level/sections/zones.ts`), each with its own
+    music, ambience and a named toast on first entry: the Glass (sea
+    window off the dock; a leviathan swims past), Souk Hathor (night
+    market behind the strip, shutters open after the first fight) and the
+    Shrine of Hathor (rooftop temple off the middle terrace, Mari's room).
+  - Four new characters with dialogue and real effects: Bas (calls the
+    leviathan; his advice slows enemy wind-ups while you hover above
+    them), Auntie Nef (full heal; intel drops one terrace enemy), Kwame
+    (tunes the ka-amp: cooldowns or barrier), Sister Merit (Mari's
+    letter). Choices with lasting effects survive death; all of them pay
+    off in the ending text.
+  - Five holo-recordings of Mari's across the level, with a counter.
+  - 53 civilians in eight looks: wander, chat, sit, kneel, dance; they run
+    for an exit or duck when a fight starts and get up after. The club's
+    music cuts when the fight starts and the floor empties.
+  - Ka cells (shoot, Lance or combo them; chain; stray enemy fire can set
+    them off) and grunt grenades (thrown at a player who stays in one
+    cover spot; beeping, red ring telegraph). One-time hints for both.
+  - Checked: tests (53), both playthroughs (kbm and pad) finish with no
+    console errors, real-time boot check, all four new conversations with
+    their effects, crowd reactions in strip and club, cell chains and
+    grenade throws. Budgets after culling the crowds per section and
+    instancing the cells: 138-321 draw calls, 270-430k triangles.
+
 ## Done checklist (from the brief)
 
 - [x] Completable start to finish with keyboard/mouse and with gamepad
   (`playthrough`, `PAD=1 playthrough`).
 - [x] Combos work on every enemy type once stripped (`combat`: grunt,
   trooper, heavy; boss phase 3 in `boss`).
-- [x] Tests pass (42), no console errors in any scripted run, medium
-  budgets met in every section (max 244 draw calls, 282k triangles).
+- [x] Tests pass (53), no console errors in any scripted run, medium
+  budgets met in every section (max 321 draw calls, 430k triangles).
 - [x] Pages workflow builds and tests in CI. Deploy needs the one-time
   repo setting (Settings -> Pages -> Source: GitHub Actions).
 - [x] New players get control prompts in context, a controls screen and

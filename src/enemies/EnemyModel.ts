@@ -166,7 +166,7 @@ function buildKind(kind: EnemyKind): BuiltModel {
   return { mesh: built.mesh, material, muzzleLocal, weakLocal };
 }
 
-export type PoseMode = 'normal' | 'stagger' | 'lifted' | 'dead' | 'flung' | 'stomp';
+export type PoseMode = 'normal' | 'stagger' | 'lifted' | 'dead' | 'flung' | 'stomp' | 'throw';
 
 export interface PoseParams {
   speed: number;
@@ -421,6 +421,17 @@ export class EnemyModel implements EnemyVisual {
       B.shinR.rotation.x = 1.2 * t;
       B.spine.rotation.x = 0.3 * t;
       B.upperArmL.rotation.z = -0.8 * t;
+    } else if (p.mode === 'throw') {
+      // Free hand wound back over the shoulder, then whipped forward.
+      const t = Math.min(1, p.modeT);
+      const rel = p.modeT > 1 ? Math.min(1, (p.modeT - 1) * 5) : 0;
+      B.upperArmL.rotation.x = THREE.MathUtils.lerp(-2.7 * t, -1.1, rel);
+      B.upperArmL.rotation.y = 0;
+      B.upperArmL.rotation.z = THREE.MathUtils.lerp(-0.25, -0.1, rel);
+      B.foreArmL.rotation.x = THREE.MathUtils.lerp(-1.5 * t, -0.15, rel);
+      B.foreArmL.rotation.y = 0;
+      B.chest.rotation.y += THREE.MathUtils.lerp(0.4 * t, -0.35, rel);
+      B.spine.rotation.x += THREE.MathUtils.lerp(-0.18 * t, 0.3, rel);
     }
     void capsule;
   }

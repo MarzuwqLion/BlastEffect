@@ -91,6 +91,12 @@ export const club: SectionDef = {
   objective: OBJECTIVES.club,
   markers: { floor: [0, 1.5, -175], yaw: [-16.5, 2, -181], exit: [0, 6, -200], route: [22.5, 1.5, -180] },
   npcs: [{ id: 'yaw', x: -16.6, y: 0, z: -181, yaw: -Math.PI / 2, dialogue: 'bartender', available: (d) => d.isCleared('club') }],
+  crowds: [
+    // The floor is packed when Ka walks in; when the music cuts, everyone runs for the street.
+    { area: [-7.5, -160, 7.5, -176], y: 0, count: 12, seed: 41, mood: 'dance', face: Math.PI, flee: [0, 0, -146] },
+    { area: [-13.4, -174, -13.4, -188], spots: [[-13.4, -174], [-13.4, -179.6], [-13.4, -185.2]], y: 0.32, count: 3, seed: 43, mood: 'sit', face: -Math.PI / 2, flee: [-2, 0, -146] },
+    { area: [-12, -155.5, -7, -157.5], y: 0, count: 3, seed: 47, mood: 'chat', flee: [-1, 0, -146] },
+  ],
   encounters: [
     {
       id: 'club',
@@ -251,6 +257,11 @@ export const club: SectionDef = {
     b.pickup('ammo', -20.5, WING_Y, -175);
     b.pickup('ammo', 9, 0, -160);
     b.pickup('health', 20.5, WING_Y, -196);
+    b.kaCell(-20.4, WING_Y, -192.2);
+    b.kaCell(-20.9, WING_Y, -190.9);
+    b.kaCell(20.4, WING_Y, -177.6);
+    b.kaCell(3.6, 0.8, -191.6);
+    b.kaCell(-3.6, 0.8, -191.6);
 
     // Service corridor (opened by intel) with a supply cage.
     b.box(26, -0.6, -180, 7, 0.6, 9, { mat: m.concrete });
@@ -263,5 +274,6 @@ export const club: SectionDef = {
     b.pickup('health', 28.5, 0, -182, 'intel_route');
     b.pickup('health', 26, 0, -183.6, 'intel_route');
     b.light(27, 3, -180, 0xffc04a, 4, 8);
+    b.holoLog('club', -19.6, 0, -174.2);
   },
 };

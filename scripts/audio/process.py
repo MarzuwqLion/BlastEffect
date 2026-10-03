@@ -203,6 +203,7 @@ job(loop, M('boss'), V + "12 We're Not Done Here Yet.wav", start=0.0, dur=170.0,
 job(loop, M('victory'), V + '13 Finale.wav', start=0.0, dur=150.0, xfade=4.0)
 job(loop, M('gallery'), V + '08 Caves.wav', start=0.0, dur=150.0, xfade=4.0, lufs=-20)
 job(loop, M('heist'), V + '07 Heist.wav', start=0.0, dur=150.0, xfade=4.0)
+job(loop, M('shrine'), V + '04 Facilitated Conversation.wav', start=0.0, dur=150.0, xfade=4.0, lufs=-20)
 job(loop, M('club'), 'EasternArcticDubstep.mp3', start=0.0, dur=150.0, xfade=3.0, lufs=-15)
 job(loop, M('market'), 'desert_loop.mp3', start=0.0, dur=64.0, xfade=0.5, lufs=-19)
 

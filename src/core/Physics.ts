@@ -35,7 +35,7 @@ export const MASK = {
 export type SurfaceKind = 'stone' | 'metal' | 'glass' | 'flesh' | 'shield' | 'armor';
 
 export interface ColliderTag {
-  kind: 'world' | 'enemy' | 'player' | 'boss';
+  kind: 'world' | 'enemy' | 'player' | 'boss' | 'prop';
   /** The owning gameplay object (an Enemy for enemy colliders). */
   owner?: unknown;
   zone?: HitZone;

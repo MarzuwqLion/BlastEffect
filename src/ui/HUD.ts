@@ -80,11 +80,19 @@ export class HUD {
   private readonly promptsBox: HTMLDivElement;
   private readonly context: HTMLDivElement;
   private readonly toastEl: HTMLDivElement;
+  private readonly logEl: HTMLDivElement;
+  private readonly logTitle: HTMLDivElement;
+  private readonly logText: HTMLDivElement;
+  private logFull = '';
+  private logShown = 0;
+  private logT = 0;
   private readonly subtitle: HTMLDivElement;
 
   private hitT = 0;
   private calloutT = 0;
   private toastT = 0;
+  /** Toasts raised while the HUD is hidden (in a conversation) wait their turn. */
+  private readonly toastQueue: string[] = [];
   private subtitleT = 0;
   private readonly arcT = [0, 0, 0, 0];
   private readonly arcAngle = [0, 0, 0, 0];
@@ -188,6 +196,9 @@ export class HUD {
     this.promptsBox = el('div', 'prompts', this.root);
     this.context = el('div', 'context', this.root);
     this.toastEl = el('div', 'toast', this.root);
+    this.logEl = el('div', 'holo-log', this.root);
+    this.logTitle = el('div', 'title', this.logEl);
+    this.logText = el('div', 'text', this.logEl);
     this.subtitle = el('div', 'subtitle', this.root);
 
     game.input.onDeviceChange(() => this.refreshGlyphs());
@@ -198,6 +209,7 @@ export class HUD {
     if (v === this.visible) return;
     this.visible = v;
     this.root.classList.toggle('hidden', !v);
+    if (v && this.toastT <= 0 && this.toastQueue.length) this.toast(this.toastQueue.shift()!);
   }
 
   private set(key: string, value: string | number, apply: () => void): void {
@@ -294,9 +306,27 @@ export class HUD {
   }
 
   toast(text: string): void {
+    if (!this.visible || (this.toastT > 0.8 && this.toastEl.textContent !== text && this.toastQueue.length < 3)) {
+      if (!this.toastQueue.includes(text)) this.toastQueue.push(text);
+      return;
+    }
     this.toastEl.textContent = text;
     this.toastT = 2.6;
     this.toastEl.classList.add('show');
+  }
+
+  /** A recording or letter of Mari's: typed out in a side panel, then fades. */
+  showLog(title: string, text: string, counter?: string): void {
+    this.logTitle.textContent = counter ? `${title}  ·  ${counter}` : title;
+    this.logFull = text;
+    this.logShown = 0;
+    this.logText.textContent = '';
+    this.logT = 3.5 + text.length * 0.055;
+    this.logEl.classList.add('show');
+  }
+
+  get logVisible(): boolean {
+    return this.logT > 0;
   }
 
   bark(who: string, text: string): void {
@@ -360,7 +390,7 @@ export class HUD {
     const P = CONFIG.player;
 
     // Defenses.
-    const sh = p.shield / P.shieldMax;
+    const sh = p.shield / p.shieldMax;
     const hp = p.health / P.healthMax;
     this.set('sh', Math.round(sh * 200), () => {
       this.shieldFill.style.transform = `scaleX(${sh})`;
@@ -432,9 +462,20 @@ export class HUD {
       this.calloutT -= dt;
       if (this.calloutT <= 0) this.calloutEl.classList.remove('show');
     }
+    if (this.logT > 0) {
+      this.logT -= dt;
+      if (this.logShown < this.logFull.length) {
+        this.logShown = Math.min(this.logFull.length, this.logShown + dt * 55);
+        this.logText.textContent = this.logFull.slice(0, Math.floor(this.logShown));
+      }
+      if (this.logT <= 0) this.logEl.classList.remove('show');
+    }
     if (this.toastT > 0) {
       this.toastT -= dt;
-      if (this.toastT <= 0) this.toastEl.classList.remove('show');
+      if (this.toastT <= 0) {
+        this.toastEl.classList.remove('show');
+        if (this.visible && this.toastQueue.length) this.toast(this.toastQueue.shift()!);
+      }
     }
     if (this.subtitleT > 0) {
       this.subtitleT -= dt;

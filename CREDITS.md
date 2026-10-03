@@ -18,10 +18,11 @@ Licences were checked on each source page.
 | combat | "Cyber Side Scroller" | dancramp (Void) | CC BY 4.0 |
 | boss | "We're Not Done Here Yet" | dancramp (Void) | CC BY 4.0 |
 | victory | "Finale" | dancramp (Void) | CC BY 4.0 |
-| gallery | "Caves" | dancramp (Void) | CC BY 4.0 |
+| gallery (the Glass) | "Caves" | dancramp (Void) | CC BY 4.0 |
 | heist (terraces, Basin approach) | "Heist" | dancramp (Void) | CC BY 4.0 |
+| shrine (the Shrine of Hathor) | "Facilitated Conversation" | dancramp (Void) | CC BY 4.0 |
 | club (the Sistrum's sound system) | ["Eastern Arctic Dubstep"](https://opengameart.org/content/eastern-arctic-dubstep) | VishwaJai | CC0 |
-| market | ["Desert Loop"](https://opengameart.org/content/desert-loop) | iamoneabe | CC0 |
+| market (Souk Hathor) | ["Desert Loop"](https://opengameart.org/content/desert-loop) | iamoneabe | CC0 |
 
 The Void tracks were shortened and given a crossfaded loop point.
 

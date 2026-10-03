@@ -48,6 +48,15 @@ export interface Trigger {
   max: THREE.Vector3;
 }
 
+/** One of Mari's holo-recordings, waiting to be picked up. */
+export interface HoloLog {
+  id: string;
+  pos: THREE.Vector3;
+  mesh: THREE.Object3D;
+  section: number;
+  found: boolean;
+}
+
 export interface Pickup {
   kind: 'ammo' | 'health';
   pos: THREE.Vector3;
@@ -79,6 +88,7 @@ export class LevelBuilder {
   readonly doors: Door[] = [];
   readonly triggers: Trigger[] = [];
   readonly pickups: Pickup[] = [];
+  readonly logs: HoloLog[] = [];
   readonly anims: ((t: number, dt: number) => void)[] = [];
 
   constructor(readonly game: Game, readonly section: number) {
@@ -262,6 +272,39 @@ export class LevelBuilder {
     this.pickups.push(p);
     this.light(x, y + 0.8, z, kind === 'ammo' ? 0x60d8ff : 0xff6060, 1.5, 3.5);
     return p;
+  }
+
+  /** A holo-recording of Mari's: a small gold projector with a slowly turning disc of light. */
+  /** An explosive ka cell (shoot it). */
+  kaCell(x: number, y: number, z: number): void {
+    this.game.explosives.addCell(x, y, z, this.section);
+  }
+
+  holoLog(id: string, x: number, y: number, z: number): HoloLog {
+    const mats = this.game.mats;
+    const mesh = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.12, 12), mats.gold);
+    base.position.y = 0.06;
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.02, 20), mats.neonCyan);
+    disc.position.y = 0.75;
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.12, 0.65, 10, 1, true), mats.neonCyanDim);
+    beam.position.y = 0.42;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.012, 6, 28), mats.neonGold);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.75;
+    mesh.add(base, disc, beam, ring);
+    mesh.position.set(x, y, z);
+    this.group.add(mesh);
+    this.light(x, y + 0.9, z, 0x60e8ff, 2, 4);
+    const log: HoloLog = { id, pos: new THREE.Vector3(x, y, z), mesh, section: this.section, found: false };
+    this.anims.push((t) => {
+      disc.rotation.y = t * 1.4;
+      ring.rotation.z = t * 0.8;
+      disc.position.y = 0.75 + Math.sin(t * 2.1) * 0.05;
+      ring.position.y = disc.position.y;
+    });
+    this.logs.push(log);
+    return log;
   }
 
   trigger(id: string, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): Trigger {

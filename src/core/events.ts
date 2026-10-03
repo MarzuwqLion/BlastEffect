@@ -2,7 +2,7 @@
 export type GameEventName =
   | 'coverEnter' | 'weaponFired' | 'weaponSwap' | 'powerCast' | 'primed' | 'combo'
   | 'pullBlocked' | 'playerDied' | 'enemyKilled' | 'sectionStart' | 'encounterStart'
-  | 'encounterClear' | 'dialogueEnd' | 'bossPhase' | 'bossDefeated' | 'checkpoint';
+  | 'encounterClear' | 'dialogueEnd' | 'bossPhase' | 'bossDefeated' | 'checkpoint' | 'logFound' | 'explosion';
 
 type Handler = (arg?: unknown) => void;
 

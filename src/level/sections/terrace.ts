@@ -3,6 +3,7 @@ import { NAMES, OBJECTIVES, SIGNS } from '../../strings';
 import { crateCover, hologram, neonSign, obelisk, planter, pylon } from '../kit';
 import type { LevelBuilder } from '../LevelBuilder';
 import type { SectionDef } from './types';
+import { buildShrine } from './zones';
 
 const T1 = 4.2;
 const T2 = 6.6;
@@ -37,11 +38,27 @@ export const terrace: SectionDef = {
   name: 'The Terraces',
   checkpoint: { x: 0, y: T1, z: -203.5, yaw: 0 },
   enter: [-16, T1 - 1, -201.5, 16, 20, -281],
-  nav: { minX: -16, maxX: 16, minZ: -283, maxZ: -200, minY: 3, maxY: 14 },
+  nav: { minX: -45, maxX: 16, minZ: -283, maxZ: -200, minY: 3, maxY: 14 },
   music: 'heist',
   dome: 0.75,
   ambient: [0x3a8aa0, 0x2a1c10, 0.9],
   objective: OBJECTIVES.terrace,
+  npcs: [{ id: 'merit', x: -40, y: T2 + 0.5, z: -253, yaw: -Math.PI / 2, dialogue: 'priestess' }],
+  zones: [
+    {
+      id: 'shrine',
+      name: NAMES.shrine,
+      box: [-16.6, T2 - 1, -239, -45, T2 + 9, -267],
+      music: 'shrine',
+      dome: 0.9,
+      nudge: { box: [-16, T2 - 1, -244, -6, T2 + 4, -258], text: OBJECTIVES.optShrine },
+    },
+  ],
+  crowds: [
+    // Kneeling at Hathor's altar; two more talking by the lotus pool.
+    { area: [-36.6, -251.2, -35.4, -254.8], y: T2, count: 3, seed: 51, mood: 'kneel', face: -Math.PI / 2 },
+    { area: [-28, -244, -26, -246], y: T2, count: 2, seed: 53, mood: 'chat' },
+  ],
   markers: { top: [0, T3 + 1.5, -262], gate: [0, T3 + 2, -282] },
   encounters: [
     {
@@ -64,6 +81,8 @@ export const terrace: SectionDef = {
             { kind: 'grunt', x: -9, y: T3, z: -268, delay: 0.4 },
             { kind: 'grunt', x: 9, y: T3, z: -268, delay: 0.8 },
           ],
+          // Nef's tip: hit them during the shift change and one is still on his way.
+          fewerWith: { flag: 'intel_shifts', drop: 1 },
         },
       ],
       onStart: (d) => d.hint('rifleRange'),
@@ -102,13 +121,23 @@ export const terrace: SectionDef = {
         b.box((x0 + x1) / 2, y + 1.0, z, w + 0.1, 0.08, 0.6, { mat: m.gold, collide: false });
       }
     }
-    // Side balustrades and the drop beyond.
+    // Side balustrades and the drop beyond. The west one opens at z -251..-255
+    // onto the bridge to the Shrine of Hathor.
     for (const x of [-16.2, 16.2]) {
       b.box(x, T1, -216.5, 0.5, 1.1, 31, { mat: m.sandstone });
-      b.box(x, T2, -245.5, 0.5, 1.1, 27, { mat: m.sandstone });
+      if (x < 0) {
+        b.box(x, T2, -241.5, 0.5, 1.1, 19, { mat: m.sandstone });
+        b.box(x, T2, -257, 0.5, 1.1, 4, { mat: m.sandstone });
+        b.blocker(x, T1, -225.5, 0.6, 12, 51);
+        b.blocker(x, T1, -268.5, 0.6, 12, 27);
+        b.blocker(x, T1, -253, 0.6, T2 - T1, 4);
+      } else {
+        b.box(x, T2, -245.5, 0.5, 1.1, 27, { mat: m.sandstone });
+        b.blocker(x, T1, -241, 0.6, 12, 82);
+      }
       b.box(x, T3, -271, 0.5, 1.1, 24, { mat: m.sandstone });
-      b.blocker(x, T1, -241, 0.6, 12, 82);
     }
+    buildShrine(b, game, T2);
     // Gardens: palms, planters, pools, obelisks, columns.
     for (const [x, y, z] of [[-13.5, T1, -208], [13.5, T1, -208], [-13.5, T1, -220], [13.5, T1, -220], [-14, T2, -240], [14, T2, -240], [-14, T3, -264], [14, T3, -276]] as const) {
       b.instance(p.palm, x, y, z, x * 0.3, 1);
@@ -136,6 +165,7 @@ export const terrace: SectionDef = {
     for (let z = -206; z > -280; z -= 9) {
       const y = z > -229 ? T1 : z > -256 ? T2 : T3;
       for (const x of [-15.5, 15.5]) {
+        if (x < 0 && z === -251) continue;
         b.instance(p.lamp, x, y + 1.1, z, 0, 0.6);
         b.light(x, y + 3.6, z, 0xffc06a, 4, 8);
       }
@@ -146,14 +176,22 @@ export const terrace: SectionDef = {
     b.pickup('ammo', 12, T2, -250.5);
     b.pickup('health', -12, T2, -251);
     b.pickup('ammo', 13.5, T3, -279);
+    b.holoLog('gate', -13.6, T3, -277.2);
+    b.kaCell(-7.4, T2, -236.6);
+    b.kaCell(7.4, T2, -251.2);
+    b.kaCell(-9.0, T3, -272.6);
+    b.kaCell(-8.2, T3, -273.5);
+    b.kaCell(12.8, T3, -263.4);
 
     // City backdrop: silhouettes of towers and pyramids beyond the balustrades.
     const back = new THREE.Group();
     const towerMat = m.blackGlass;
     for (let i = 0; i < 26; i++) {
       const side = i % 2 ? 1 : -1;
-      const x = side * (40 + Math.random() * 80);
+      let x = side * (40 + Math.random() * 80);
       const z = -150 - Math.random() * 220;
+      // Keep clear of the Shrine's rooftop.
+      if (side < 0 && x > -64 && z < -226 && z > -280) x -= 30;
       const h = 15 + Math.random() * 50;
       const w = 6 + Math.random() * 12;
       const tower = new THREE.Mesh(i % 5 === 0 ? new THREE.ConeGeometry(w, h, 4) : new THREE.BoxGeometry(w, h, w), towerMat);

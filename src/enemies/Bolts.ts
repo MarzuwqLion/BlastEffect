@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CONFIG } from '../config';
 import { MASK, makeRayHit } from '../core/Physics';
 import type { Game } from '../game/Game';
+import type { Shootable } from '../combat/Explosives';
 
 const MAX = 256;
 
@@ -125,6 +126,8 @@ export class Bolts {
       }
       if (hitWorld && !hitPlayer) {
         this.game.fx.boltImpact(_hit.point, _hit.normal, b.color);
+        // Stray fire can set off a ka cell the player is hiding behind.
+        if (_hit.tag?.kind === 'prop' && _hit.tag.owner) (_hit.tag.owner as Shootable).shot(b.damage * 0.5, _hit.point);
         b.active = false;
         continue;
       }

@@ -160,6 +160,7 @@ export class Combat {
     }
     this.game.time.hitStop(C.hitStop);
     this.game.fx.comboExplosion(_center, C.radius);
+    this.game.explosives.igniteNear(_center, C.radius);
     this.game.audio.play('combo', { volume: 1 });
     const dist = this.game.player.position.distanceTo(_center);
     this.game.rig.addShake(C.shake * Math.max(0.35, 1 - dist / 40));

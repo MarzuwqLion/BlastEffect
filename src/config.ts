@@ -532,6 +532,56 @@ export const CONFIG = {
     estimate: { uptime: 0.5, waveTime: 16 },
   },
 
+  /** Explosive ka cells in the levels and the grunts' grenades. */
+  explosives: {
+    cell: {
+      /** Damage a cell takes before it goes (SMG ~3 hits, rifle 1). */
+      hp: 24,
+      /** Hiss between ignition and the blast. */
+      fuse: 0.4,
+      /** Fuse when set off by another explosion (chains ripple). */
+      chainFuse: 0.18,
+      radius: 5.2,
+      damage: 190,
+      layers: { shield: 0.8, armor: 1.4, health: 1 } as LayerMultipliers,
+      playerDamage: 55,
+      flingSpeed: 11,
+      flingUp: 6.5,
+      shake: 0.7,
+    },
+    grenade: {
+      /** Seconds from the throw to the blast. */
+      fuse: 2.4,
+      radius: 4.2,
+      /** Against the grunts' own side (they're careless). */
+      damage: 60,
+      layers: { shield: 1, armor: 1, health: 1 } as LayerMultipliers,
+      playerDamage: 42,
+      /** Wind-up before the throw (the tell). */
+      windup: 0.55,
+      flight: 1.05,
+      /** Only after the player has sat behind the same cover this long. */
+      coverTime: 3,
+      minRange: 6,
+      maxRange: 22,
+      /** Per-grunt and shared cooldowns. */
+      cooldown: 14,
+      sharedCooldown: 7,
+      chance: 0.6,
+      shake: 0.45,
+    },
+    /** Damage scale when a wall is between the blast and the player. */
+    occludedScale: 0.2,
+  },
+
+  /** Kwame's ka-amp tuning (one or the other). */
+  tuning: {
+    kaCooldownScale: 0.8,
+    shieldBonus: 25,
+    /** Enemy wind-up when the player hovers above them and heard Bas's advice. */
+    lookUpTelegraphScale: 1.5,
+  },
+
   pickups: {
     healthAmount: 50,
     ammoCrateCooldown: 18,
