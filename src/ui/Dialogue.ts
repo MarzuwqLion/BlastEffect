@@ -2,6 +2,7 @@ import { CONFIG } from '../config';
 import { DIALOGUE, SPEAKERS, UI } from '../strings';
 import { evalCondition, type DialogueChoice, type DialogueNode, type DialogueTree, type SpeakerId } from '../dialogue/types';
 import type { Game } from '../game/Game';
+import { VOICES, voiceFor } from '../audio/manifest';
 import { glyph } from './glyph';
 
 /**
@@ -204,10 +205,12 @@ export class DialogueUI {
       const now = Math.floor(this.shown);
       if (now !== before) {
         this.lineEl.textContent = this.node.text.slice(0, now);
+        // Their voice: a vowel every few letters, at the speaker's pitch.
         this.blipAcc += now - before;
-        if (this.blipAcc >= 3) {
+        const sound = voiceFor(this.node.text[now - 1] ?? ' ');
+        if (this.blipAcc >= 4 && sound) {
           this.blipAcc = 0;
-          this.game.audio.play('typeBlip');
+          this.game.audio.play(sound, { rate: VOICES[this.node.speaker] ?? 1 });
         }
       }
       if (this.shown >= this.node.text.length) {

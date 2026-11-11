@@ -76,11 +76,16 @@ export class Leviathan {
   }
 
   /** Swim past the Glass now (Bas points her out). */
-  pass(): void {
-    // Outside the Glass's window (east of the dock), crossing north to south.
-    this.from.set(60, 6.5, 35);
-    this.to.set(56, 3, -85);
-    this.duration = 30;
+  /** She swims by. Default: outside the Glass's window (east of the dock), north to south. */
+  pass(from?: THREE.Vector3, to?: THREE.Vector3, duration = 30): void {
+    if (from && to) {
+      this.from.copy(from);
+      this.to.copy(to);
+    } else {
+      this.from.set(60, 6.5, 35);
+      this.to.set(56, 3, -85);
+    }
+    this.duration = duration;
     this.t = 0;
     this.root.visible = true;
   }

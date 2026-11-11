@@ -30,11 +30,16 @@ export class CameraRig {
   recoilYaw = 0;
   private recoilRecovery = 8;
 
-  mode: 'gameplay' | 'dialogue' | 'free' = 'gameplay';
+  mode: 'gameplay' | 'dialogue' | 'free' | 'cine' = 'gameplay';
+  private readonly cinePos = new THREE.Vector3();
+  private readonly cineLook = new THREE.Vector3();
+  private cineFov = 42;
   private readonly dialoguePos = new THREE.Vector3();
   private readonly dialogueLook = new THREE.Vector3();
   private readonly curLook = new THREE.Vector3();
   private dialogueBlend = 0;
+  /** Seconds on the current dialogue shot (drives the slow push-in). */
+  private shotT = 0;
 
   readonly pivot = new THREE.Vector3();
   readonly forward = new THREE.Vector3(0, 0, -1);
@@ -63,8 +68,11 @@ export class CameraRig {
     this.recoilYaw += yawDeg * DEG;
   }
 
+  /** From the settings: 0 turns camera shake off. */
+  shakeScale = 1;
+
   addShake(amount: number): void {
-    this.trauma = Math.min(1, this.trauma + amount);
+    this.trauma = Math.min(1, this.trauma + amount * this.shakeScale);
   }
 
   kickFov(deg: number): void {
@@ -104,11 +112,25 @@ export class CameraRig {
     if (instant) {
       this.camera.position.copy(pos);
       this.curLook.copy(look);
+      this.shotT = 0;
     }
   }
 
   endDialogue(): void {
     this.mode = 'gameplay';
+  }
+
+  /** Cutscenes place the camera themselves, every frame. */
+  cine(pos: THREE.Vector3, look: THREE.Vector3, fov: number): void {
+    this.mode = 'cine';
+    this.cinePos.copy(pos);
+    this.cineLook.copy(look);
+    this.cineFov = fov;
+  }
+
+  endCine(): void {
+    if (this.mode === 'cine') this.mode = 'gameplay';
+    this.dialogueBlend = 0;
   }
 
   update(
@@ -174,10 +196,20 @@ export class CameraRig {
     this.euler.set(pitch, yaw, 0, 'YXZ');
     this.baseQuat.setFromEuler(this.euler);
 
-    if (this.mode === 'dialogue') {
+    if (this.mode === 'cine') {
+      this.camera.position.copy(this.cinePos);
+      this.camera.lookAt(this.cineLook);
+      this.camera.fov = this.cineFov;
+    } else if (this.mode === 'dialogue') {
       this.dialogueBlend = Math.min(1, this.dialogueBlend + dt * 1.6);
       const k = Math.min(1, dt * C.dialogueLerp);
-      this.camera.position.lerp(this.dialoguePos, this.dialogueBlend >= 1 ? k : k * 0.7);
+      // Each shot creeps toward its subject with a breath of handheld sway.
+      this.shotT += dt;
+      const push = Math.min(1, this.shotT / 7) * 0.08;
+      this.tmp2.copy(this.dialoguePos).lerp(this.dialogueLook, push);
+      this.tmp2.x += Math.sin(this.shotT * 0.7) * 0.01;
+      this.tmp2.y += Math.sin(this.shotT * 0.93 + 1.3) * 0.007;
+      this.camera.position.lerp(this.tmp2, this.dialogueBlend >= 1 ? k : k * 0.7);
       this.curLook.lerp(this.dialogueLook, k);
       this.camera.lookAt(this.curLook);
       this.camera.fov += (40 - this.camera.fov) * k;
@@ -211,6 +243,11 @@ export class CameraRig {
     }
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
+  }
+
+  /** 0..1 current shake (squared trauma), for screen effects. */
+  get shakeLevel(): number {
+    return this.trauma * this.trauma;
   }
 
   /** 0..1 how far into aim the camera is. */

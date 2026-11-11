@@ -16,7 +16,7 @@ export const dock: SectionDef = {
   nav: { minX: -12, maxX: 36, minZ: -44, maxZ: 4, minY: -2, maxY: 8 },
   music: 'dock',
   dome: 0.9,
-  ambient: [0x3a8aa0, 0x1a1210, 0.85],
+  ambient: [0x3a8aa0, 0x1a1210, 1.35],
   objective: OBJECTIVES.dockTalk,
   encounters: [],
   npcs: [
@@ -69,6 +69,8 @@ export const dock: SectionDef = {
     }
     train.position.set(-14, 0.2, -16);
     b.group.add(train);
+    // The opening slides it in from up the line.
+    game.setPieces.train = train;
     b.blocker(-14, -1.6, -16, 3.4, 4, 30);
     // Glass tube over the tracks.
     const tube = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.2, 48, 24, 1, true, Math.PI, Math.PI).rotateX(Math.PI / 2).rotateZ(Math.PI / 2), m.glass);

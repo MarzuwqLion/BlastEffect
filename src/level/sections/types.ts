@@ -30,6 +30,12 @@ export interface EncounterDef {
   /** Player entering this box starts the encounter. [x0,y0,z0,x1,y1,z1] */
   trigger: [number, number, number, number, number, number];
   waves: WaveDef[];
+  /**
+   * The first wave is already at its posts when the player arrives, unaware.
+   * The fight starts when one of them notices her (or is hit); the trigger
+   * box is not used.
+   */
+  staged?: boolean;
   onStart?: (d: Director) => void;
   onClear?: (d: Director) => void;
 }
@@ -86,6 +92,14 @@ export interface SectionDef {
   musicAfter?: MusicCue;
   /** Hemisphere ambient for this section: sky colour, ground colour, intensity. */
   ambient?: [number, number, number];
+  /** Haze for this section: colour and a density scale (default: the sea-teal haze at 1). */
+  fog?: [number, number];
+  /**
+   * The opening sections go easier than the difficulty's numbers: `damage`
+   * scales what she takes here, `tokens` is how many fewer enemies may
+   * shoot at once.
+   */
+  ease?: { damage: number; tokens: number };
   objective: string;
   encounters: EncounterDef[];
   npcs?: NpcDef[];

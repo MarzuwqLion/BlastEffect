@@ -87,7 +87,9 @@ export const club: SectionDef = {
   nav: { minX: -22, maxX: 29, minZ: -201, maxZ: -151, minY: -1, maxY: 9 },
   music: 'club',
   dome: 0.12,
-  ambient: [0x8a3a9a, 0x12304a, 1.6],
+  ambient: [0x8a3a9a, 0x12304a, 2.4],
+  fog: [0x1a0c26, 0.75],
+  ease: { damage: 0.88, tokens: 0 },
   objective: OBJECTIVES.club,
   markers: { floor: [0, 1.5, -175], yaw: [-16.5, 2, -181], exit: [0, 6, -200], route: [22.5, 1.5, -180] },
   npcs: [{ id: 'yaw', x: -16.6, y: 0, z: -181, yaw: -Math.PI / 2, dialogue: 'bartender', available: (d) => d.isCleared('club') }],
@@ -101,13 +103,15 @@ export const club: SectionDef = {
     {
       id: 'club',
       trigger: [-22, -1, -159, 22, 3, -199],
+      // Watching the dance floor from the wings and the back of the room.
+      staged: true,
       waves: [
         {
           spawns: [
-            { kind: 'grunt', x: 19.5, y: WING_Y, z: -181 },
-            { kind: 'grunt', x: -19.5, y: WING_Y, z: -189, delay: 0.3 },
-            { kind: 'trooper', x: 6, y: 0, z: -181 },
-            { kind: 'grunt', x: -7, y: 0, z: -186, delay: 0.5 },
+            { kind: 'grunt', x: 19.5, y: WING_Y, z: -181, yaw: Math.PI / 2 },
+            { kind: 'grunt', x: -19.5, y: WING_Y, z: -189, yaw: -Math.PI / 2 },
+            { kind: 'trooper', x: 6, y: 0, z: -183, yaw: Math.PI },
+            { kind: 'jackal', x: -7, y: 0, z: -188, yaw: Math.PI * 0.8 },
           ],
         },
         {
@@ -130,7 +134,9 @@ export const club: SectionDef = {
     },
   ],
   onEnter: (d) => {
-    d.setObjective(OBJECTIVES.club, 'floor');
+    // The crew can be shot from the street door: don't ask her to clear a room that already is.
+    if (d.isCleared('club')) d.setObjective(OBJECTIVES.clubExit, 'exit');
+    else d.setObjective(OBJECTIVES.club, 'floor');
     if (d.flags.has('intel_route')) d.openDoor('serviceDoor');
   },
   build(b, game) {
@@ -165,6 +171,17 @@ export const club: SectionDef = {
       b.box(21.95, y, -176, 0.08, 0.08, 48, { mat: m.neonCyan, collide: false, shadow: false });
     }
 
+    // Ceiling rig: a truss over the floor and neon bars, so the room has a top.
+    for (let z = -158; z >= -194; z -= 9) {
+      b.box(0, 9.55, z, 40, 0.07, 0.07, { mat: (z / 9) % 2 ? m.neonPink : m.neonCyanDim, collide: false, shadow: false });
+      b.box(0, 9.7, z, 42, 0.25, 0.4, { mat: m.darkMetal, collide: false, shadow: false });
+    }
+    for (const x of [-10, 10]) {
+      b.box(x, 8.7, -171, 0.3, 0.3, 28, { mat: m.darkMetal, collide: false, shadow: false });
+      b.box(x, 8.5, -171, 0.08, 0.08, 28, { mat: m.neonViolet, collide: false, shadow: false });
+    }
+    for (const z of [-158, -184]) b.box(0, 8.7, z, 20.3, 0.3, 0.3, { mat: m.darkMetal, collide: false, shadow: false });
+
     // Mezzanine (U-shape) and stairs.
     b.box(-19.5, WING_Y - 0.4, -184.5, 5, 0.4, 31, { mat: m.sandstone });
     b.box(19.5, WING_Y - 0.4, -184.5, 5, 0.4, 31, { mat: m.sandstone });
@@ -174,6 +191,13 @@ export const club: SectionDef = {
     b.box(0, WING_Y - 0.45, -194, 34, 0.12, 0.12, { mat: m.neonGold, collide: false, shadow: false });
     b.stairs(-19.5, -155, -169, 0, WING_Y, 4, m.sandstoneDark, 14);
     b.stairs(19.5, -155, -169, 0, WING_Y, 4, m.sandstoneDark, 14);
+    // Light the stairs: a neon line up each outer wall and a lamp halfway.
+    const slope = Math.atan2(WING_Y, 14);
+    for (const x of [-21.9, 21.9]) {
+      const strip = new THREE.BoxGeometry(0.07, 0.07, Math.hypot(14, WING_Y)).rotateX(slope).translate(x, WING_Y / 2 + 1.1, -162);
+      b.mesh(strip, x < 0 ? m.neonPink : m.neonCyan, new THREE.Vector3(), 0, 1, false, false);
+      b.light(x * 0.9, 3.4, -162, x < 0 ? 0xff70c0 : 0x50d8ff, 6, 10);
+    }
     // Stair side walls (so nobody falls off the open side).
     b.box(-17.4, 0, -162, 0.2, 1.0 + WING_Y * 0.5, 14, { mat: m.gold, collide: true, shadow: false });
     b.box(17.4, 0, -162, 0.2, 1.0 + WING_Y * 0.5, 14, { mat: m.gold, collide: true, shadow: false });

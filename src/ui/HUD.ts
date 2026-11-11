@@ -6,10 +6,12 @@ import type { Enemy } from '../enemies/Enemy';
 import type { Layer } from '../combat/damage';
 import { HIT_X, LAYER_ICON, POWER_ICON, layerIcon } from './icons';
 import { glyph, withGlyphs } from './glyph';
+import { VOICES, voiceFor } from '../audio/manifest';
 import { POWER_ORDER } from '../player/Powers';
 import type { PowerId } from '../character/types';
 
 const BAR_POOL = 10;
+const NOTICE_POOL = 8;
 const NUM_POOL = 14;
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -63,9 +65,14 @@ export class HUD {
   private readonly hitmarker: HTMLDivElement;
   private readonly hitIcon: HTMLDivElement;
   private readonly calloutEl: HTMLDivElement;
+  private readonly rewardEl: HTMLDivElement;
+  private rewardT = 0;
+  private readonly resultEl: HTMLDivElement;
+  private resultT = 0;
   private readonly dmgArcs: HTMLDivElement[] = [];
   private readonly vignettes: Record<'health' | 'shield' | 'combo' | 'hover', HTMLDivElement> = {} as never;
   private readonly bars: EnemyBar[] = [];
+  private readonly notices: { root: HTMLDivElement; fill: HTMLDivElement; state: number }[] = [];
   private readonly nums: DmgNum[] = [];
   private readonly bossBar: HTMLDivElement;
   private readonly bossRows: Record<Layer, { row: HTMLDivElement; fill: HTMLDivElement }> = {} as never;
@@ -151,6 +158,8 @@ export class HUD {
     this.hitmarker = el('div', 'hitmarker', this.root, HIT_X);
     this.hitIcon = el('div', 'icon', this.hitmarker);
     this.calloutEl = el('div', 'callout', this.root);
+    this.rewardEl = el('div', 'reward', this.root);
+    this.resultEl = el('div', 'result-card', this.root);
     const dd = el('div', 'dmg-dir', this.root);
     for (let i = 0; i < 4; i++) this.dmgArcs.push(el('div', 'arc', dd));
 
@@ -169,6 +178,15 @@ export class HUD {
         rows[layer] = { row, fill: el('div', 'fill', track) };
       }
       this.bars.push({ root, name, rows, enemy: null, shown: false });
+    }
+    // Marks over enemies who haven't noticed her (an eye that fills), and the moment they do.
+    for (let i = 0; i < NOTICE_POOL; i++) {
+      const root = el('div', 'notice', this.root);
+      const eye = el('div', 'eye', root);
+      const fill = el('div', 'fill', eye);
+      el('div', 'pupil', eye);
+      el('div', 'bang', root, '!');
+      this.notices.push({ root, fill, state: 0 });
     }
     for (let i = 0; i < NUM_POOL; i++) this.nums.push({ el: el('div', 'dmgnum', this.root), pos: new THREE.Vector3(), t: 0, active: false });
     this.weakMarker = el('div', 'weak-marker', this.root, `<span class="t">${UI.weakPoint}</span>`);
@@ -285,6 +303,23 @@ export class HUD {
     if (kind === 'combo') this.flash('combo');
   }
 
+  /** What a good play just paid out, under the crosshair. */
+  reward(kind: 'combo' | 'headshot' | 'ambush'): void {
+    const R = CONFIG.rewards;
+    this.rewardEl.textContent = kind === 'combo' ? UI.rewardCombo.replace('{n}', String(R.comboShield))
+      : kind === 'headshot' ? UI.rewardHeadshot.replace('{n}', String(R.headshotKillShield))
+      : UI.rewardAmbush;
+    this.rewardEl.className = `reward ${kind} show`;
+    this.rewardT = 1.5;
+  }
+
+  /** The card when a fight ends: how it went. */
+  showResult(title: string, rows: [string, string][]): void {
+    this.resultEl.innerHTML = `<div class="t">${title}</div><div class="rows">${rows.map(([k, v]) => `<div><span class="k">${k}</span><span class="v">${v}</span></div>`).join('')}</div>`;
+    this.resultEl.classList.add('show');
+    this.resultT = CONFIG.clearBeat.cardTime;
+  }
+
   powerDenied(id: PowerId, reason: 'cooldown' | 'noTarget' = 'cooldown'): void {
     const p = this.powers[id].root;
     p.classList.remove('denied');
@@ -321,7 +356,7 @@ export class HUD {
     this.logFull = text;
     this.logShown = 0;
     this.logText.textContent = '';
-    this.logT = 3.5 + text.length * 0.055;
+    this.logT = 4 + text.length * 0.06;
     this.logEl.classList.add('show');
   }
 
@@ -462,11 +497,26 @@ export class HUD {
       this.calloutT -= dt;
       if (this.calloutT <= 0) this.calloutEl.classList.remove('show');
     }
+    if (this.rewardT > 0) {
+      this.rewardT -= dt;
+      if (this.rewardT <= 0) this.rewardEl.classList.remove('show');
+    }
+    if (this.resultT > 0) {
+      this.resultT -= dt;
+      if (this.resultT <= 0) this.resultEl.classList.remove('show');
+    }
     if (this.logT > 0) {
       this.logT -= dt;
       if (this.logShown < this.logFull.length) {
-        this.logShown = Math.min(this.logFull.length, this.logShown + dt * 55);
-        this.logText.textContent = this.logFull.slice(0, Math.floor(this.logShown));
+        const before = Math.floor(this.logShown);
+        // Slower than dialogue: it is a recording playing, and she is standing there saying it.
+        this.logShown = Math.min(this.logFull.length, this.logShown + dt * 34);
+        const now = Math.floor(this.logShown);
+        if (now !== before) {
+          this.logText.textContent = this.logFull.slice(0, now);
+          const sound = voiceFor(this.logFull[now - 1] ?? ' ');
+          if (now % 4 === 0 && sound) this.game.audio.play(sound, { rate: VOICES.mari, volume: 0.8 });
+        }
       }
       if (this.logT <= 0) this.logEl.classList.remove('show');
     }
@@ -506,6 +556,7 @@ export class HUD {
     }
 
     this.updateEnemyBars();
+    this.updateNotices();
     this.updateNumbers(dt);
     this.updateMarker();
     this.updateBoss();
@@ -561,6 +612,45 @@ export class HUD {
         bar.shown = false;
         bar.enemy = null;
         bar.root.classList.remove('show');
+      }
+    }
+  }
+
+  /** Eye marks over unaware enemies (filling as they notice her) and a flash when they do. */
+  private updateNotices(): void {
+    const g = this.game;
+    const cam = g.rig.camera.position;
+    let i = 0;
+    if (g.state === 'playing' && g.rig.mode === 'gameplay') {
+      for (const e of g.enemies.active) {
+        if (i >= this.notices.length) break;
+        if (!e.alive || e.kind === 'boss' || e.state === 'spawning') continue;
+        const flash = e.alerted && e.alertedT < 0.9;
+        if (e.alerted && !flash) continue;
+        if (e.position.distanceTo(cam) > 60) continue;
+        // Only where she can actually see them: no marks through walls (kept a moment after they step out of view).
+        if (!g.physics.blocked(cam, e.chestPoint(_v2))) e.seenT = 1.2;
+        if (e.seenT <= 0 && !flash) continue;
+        e.topPoint(_v2);
+        _v2.y += 0.25;
+        this.project(_v2, this.proj);
+        if (!this.proj.vis) continue;
+        const n = this.notices[i++];
+        n.root.style.transform = `translate(${this.proj.x}px, ${this.proj.y}px)`;
+        // 1: unaware, 2: noticing, 3: just alerted.
+        const state = flash ? 3 : e.notice > 0.02 ? 2 : 1;
+        if (n.state !== state) {
+          n.state = state;
+          n.root.className = `notice show${state === 3 ? ' alert' : state === 2 ? ' warn' : ''}`;
+        }
+        if (state !== 3) n.fill.style.transform = `scaleX(${e.notice.toFixed(3)})`;
+      }
+    }
+    for (; i < this.notices.length; i++) {
+      const n = this.notices[i];
+      if (n.state !== 0) {
+        n.state = 0;
+        n.root.className = 'notice';
       }
     }
   }

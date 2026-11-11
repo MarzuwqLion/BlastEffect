@@ -62,6 +62,11 @@ export class Powers {
     return this.cooldown[id] / (PW[id].cooldown * this.cooldownScale);
   }
 
+  /** Give back a share of a power's remaining cooldown. */
+  refund(id: PowerId, share: number): void {
+    this.cooldown[id] *= 1 - share;
+  }
+
   reset(): void {
     this.cooldown.pull = 0;
     this.cooldown.throw = 0;
@@ -229,6 +234,8 @@ export class Powers {
       this.game.fx.powerFizzle(_v, 0x40e0ff);
       this.game.audio.play('powerBlocked', { at: _v });
       this.game.hud.blocked(e, e.defenses.shield > 0 ? 'shield' : 'armor');
+      // A blocked Snare is a mistake, not a wasted power.
+      this.refund('pull', CONFIG.rewards.blockedSnareRefund);
       this.game.events.emit('pullBlocked');
     }
   }

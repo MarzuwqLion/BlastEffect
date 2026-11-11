@@ -151,6 +151,37 @@ function chime(sr: number, dur: number, base: number, partials: number[], decay:
   return normalize(d);
 }
 
+/**
+ * A short sung vowel: a pulse train through three resonators (formants).
+ * Played at different rates it becomes each speaker's voice.
+ */
+function vowel(sr: number, dur: number, f0: number, formants: [number, number, number][], seed: number): Float32Array {
+  const d = buf(sr, dur);
+  const r = rng(seed);
+  const res = formants.map(([f, bw, gain]) => {
+    const rad = Math.exp((-Math.PI * bw) / sr);
+    return { a: 2 * rad * Math.cos((TAU * f) / sr), b: -rad * rad, gain, y1: 0, y2: 0 };
+  });
+  let phase = 0;
+  for (let i = 0; i < d.length; i++) {
+    const t = i / sr;
+    // Pitch falls a little through the syllable, with a breath of noise.
+    phase += (f0 * (1.04 - 0.1 * (t / dur))) / sr;
+    phase -= Math.floor(phase);
+    const src = (1 - 2 * phase) * 0.9 + r() * 0.05;
+    let out = 0;
+    for (const q of res) {
+      const y = src + q.a * q.y1 + q.b * q.y2;
+      q.y2 = q.y1;
+      q.y1 = y;
+      out += y * q.gain;
+    }
+    const e = Math.min(1, t / 0.008) * Math.min(1, (dur - t) / 0.03);
+    d[i] = out * e;
+  }
+  return normalize(d, 0.8);
+}
+
 function boom(sr: number, dur: number, seed: number, hz = 50): Float32Array {
   const d = buf(sr, dur);
   const r = rng(seed);
@@ -233,6 +264,16 @@ export const RECIPES: Record<string, Recipe> = {
   deathHeavy: (sr) => mix([boom(sr, 1.2, 62, 40), 0.9], [clicks(sr, [0.05, 0.12, 0.3], { hz: 1500, seed: 63, dur: 0.6 }), 0.4]),
   stomp: (sr) => mix([boom(sr, 1.0, 64, 35), 1], [noiseBurst(sr, 0.6, { lowHz: 1500, highHz: 150, decay: 0.15, seed: 65 }), 0.6]),
   whizz: (sr) => sweep(sr, 0.25, 2200, 900, { type: 'tri', attack: 0.08, decay: 2, noise: 0.6, seed: 66 }),
+  trainArrive: (sr) => mix(
+    [sweep(sr, 6.2, 310, 52, { type: 'saw', attack: 0.6, decay: 3.2, noise: 0.35, vibrato: 0.006, seed: 95 }), 0.5],
+    [noiseBurst(sr, 6.2, { lowHz: 2600, highHz: 500, attack: 1.4, decay: 1.6, band: true, seed: 96 }), 0.45],
+    [noiseBurst(sr, 1.6, { lowHz: 5200, highHz: 1800, attack: 0.25, decay: 0.45, band: true, seed: 97 }), 0.3, Math.floor(sr * 4.9)],
+    [boom(sr, 1.2, 98, 44), 0.35, Math.floor(sr * 5.3)],
+  ),
+  voiceA: (sr) => vowel(sr, 0.085, 172, [[800, 90, 1], [1250, 100, 0.6], [2600, 140, 0.25]], 91),
+  voiceE: (sr) => vowel(sr, 0.075, 180, [[520, 80, 1], [1850, 110, 0.5], [2550, 140, 0.25]], 92),
+  voiceO: (sr) => vowel(sr, 0.09, 165, [[460, 80, 1], [820, 90, 0.7], [2450, 140, 0.2]], 93),
+  alert: (sr) => mix([chime(sr, 0.22, 740, [1, 2, 3], 0.05), 0.55], [chime(sr, 0.4, 1109, [1, 2], 0.11), 0.6, Math.floor(sr * 0.08)], [noiseBurst(sr, 0.06, { lowHz: 5000, highHz: 1500, decay: 0.015, seed: 83 }), 0.25]),
   uiMove: (sr) => chime(sr, 0.08, 1400, [1], 0.02),
   uiSelect: (sr) => mix([chime(sr, 0.25, 880, [1, 2], 0.06), 0.6], [chime(sr, 0.25, 1320, [1], 0.05), 0.4, Math.floor(sr * 0.05)]),
   uiBack: (sr) => chime(sr, 0.15, 600, [1, 2], 0.04),

@@ -1,6 +1,7 @@
 import type { QualityLevel } from '../config';
 
 export type TextSize = 'small' | 'medium' | 'large';
+export type Difficulty = 'story' | 'standard' | 'veteran';
 
 export interface Settings {
   sensitivity: number;
@@ -11,6 +12,9 @@ export interface Settings {
   quality: QualityLevel;
   textSize: TextSize;
   aimAssist: boolean;
+  difficulty: Difficulty;
+  /** Camera shake strength, 0..1. */
+  shake: number;
 }
 
 const KEY = 'neo-atlantis.settings.v1';
@@ -24,6 +28,8 @@ export const DEFAULT_SETTINGS: Settings = {
   quality: 'medium',
   textSize: 'medium',
   aimAssist: true,
+  difficulty: 'standard',
+  shake: 1,
 };
 
 type Listener = (s: Settings) => void;

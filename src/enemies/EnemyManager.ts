@@ -38,7 +38,7 @@ export class EnemyManager {
   readonly tokens = new AttackTokens();
   /** Active enemies (alive or still playing a death). */
   readonly active: Enemy[] = [];
-  private readonly pools: Record<EnemyKind, Enemy[]> = { grunt: [], trooper: [], heavy: [] };
+  private readonly pools: Record<EnemyKind, Enemy[]> = { grunt: [], trooper: [], heavy: [], jackal: [], ibis: [] };
   private deathListeners: ((e: Enemy) => void)[] = [];
   kills = 0;
 
@@ -56,7 +56,7 @@ export class EnemyManager {
     this.deathListeners.push(l);
   }
 
-  spawn(kind: EnemyKind, pos: THREE.Vector3, yaw: number, section: number, opts?: { alerted?: boolean; delay?: number }): Enemy {
+  spawn(kind: EnemyKind, pos: THREE.Vector3, yaw: number, section: number, opts?: { alerted?: boolean; delay?: number; instant?: boolean }): Enemy {
     const pool = this.pools[kind];
     let e = pool.find((x) => !x.active);
     if (!e) {

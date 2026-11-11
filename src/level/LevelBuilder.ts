@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { HoloFigure } from '../character/HoloFigure';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { SurfaceKind } from '../core/Physics';
 import type { CoverKind } from './cover';
@@ -55,6 +56,10 @@ export interface HoloLog {
   mesh: THREE.Object3D;
   section: number;
   found: boolean;
+  /** Mari's hologram at this recording. */
+  figure: HoloFigure;
+  /** How close the player has to come to play it. */
+  radius: number;
 }
 
 export interface Pickup {
@@ -274,34 +279,66 @@ export class LevelBuilder {
     return p;
   }
 
-  /** A holo-recording of Mari's: a small gold projector with a slowly turning disc of light. */
   /** An explosive ka cell (shoot it). */
   kaCell(x: number, y: number, z: number): void {
     this.game.explosives.addCell(x, y, z, this.section);
   }
 
-  holoLog(id: string, x: number, y: number, z: number): HoloLog {
+  /**
+   * One of Mari's recordings: a projector pad with her hologram standing on
+   * it (or a desk projector with a small figure, `mini`). `yaw` is the way
+   * she faces until someone comes close.
+   */
+  holoLog(id: string, x: number, y: number, z: number, opts: { mini?: boolean; yaw?: number } = {}): HoloLog {
     const mats = this.game.mats;
     const mesh = new THREE.Group();
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.12, 12), mats.gold);
-    base.position.y = 0.06;
-    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.02, 20), mats.neonCyan);
-    disc.position.y = 0.75;
-    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.12, 0.65, 10, 1, true), mats.neonCyanDim);
-    beam.position.y = 0.42;
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.012, 6, 28), mats.neonGold);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.y = 0.75;
-    mesh.add(base, disc, beam, ring);
+    const glow = new THREE.Group();
+    const figure = new HoloFigure(opts.mini ? 0.3 : 1, opts.yaw ?? 0);
+    let ring: THREE.Mesh;
+    let disc: THREE.Mesh | null = null;
+    if (opts.mini) {
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.12, 12), mats.gold);
+      base.position.y = 0.06;
+      disc = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.02, 20), mats.neonCyan);
+      disc.position.y = 0.2;
+      ring = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.012, 6, 28), mats.neonGold);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 0.2;
+      figure.root.position.y = 0.22;
+      mesh.add(base);
+      glow.add(disc, ring);
+    } else {
+      const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.58, 0.06, 24), mats.gold);
+      pad.position.y = 0.03;
+      const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.44, 0.02, 24), mats.neonCyanDim);
+      plate.position.y = 0.065;
+      ring = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.014, 6, 36), mats.neonCyan);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 0.12;
+      figure.root.position.y = 0.07;
+      mesh.add(pad);
+      glow.add(plate, ring);
+    }
+    glow.add(figure.root);
+    mesh.add(glow);
     mesh.position.set(x, y, z);
     this.group.add(mesh);
     this.light(x, y + 0.9, z, 0x60e8ff, 2, 4);
-    const log: HoloLog = { id, pos: new THREE.Vector3(x, y, z), mesh, section: this.section, found: false };
-    this.anims.push((t) => {
-      disc.rotation.y = t * 1.4;
+    const log: HoloLog = { id, pos: new THREE.Vector3(x, y, z), mesh, section: this.section, found: false, figure, radius: opts.mini ? 1.7 : 2.1 };
+    const game = this.game;
+    this.anims.push((t, dt) => {
+      if (figure.done) {
+        glow.visible = false;
+        return;
+      }
       ring.rotation.z = t * 0.8;
-      disc.position.y = 0.75 + Math.sin(t * 2.1) * 0.05;
-      ring.position.y = disc.position.y;
+      if (disc) {
+        disc.rotation.y = t * 1.4;
+      } else {
+        // The ring rides slowly up and down her legs.
+        ring.position.y = 0.12 + (0.5 + 0.5 * Math.sin(t * 0.9)) * 0.5;
+      }
+      figure.update(dt, game.player.position);
     });
     this.logs.push(log);
     return log;

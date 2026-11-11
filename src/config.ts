@@ -62,7 +62,7 @@ export interface EnemyWeaponConfig {
 }
 
 export interface EnemyConfig {
-  id: 'grunt' | 'trooper' | 'heavy' | 'boss';
+  id: 'grunt' | 'trooper' | 'heavy' | 'jackal' | 'ibis' | 'boss';
   shield: number;
   armor: number;
   health: number;
@@ -266,7 +266,7 @@ export const CONFIG = {
 
   powers: {
     pull: {
-      cooldown: 8,
+      cooldown: 6.5,
       range: 48,
       projectileSpeed: 34,
       homing: 7,
@@ -279,7 +279,7 @@ export const CONFIG = {
       castTime: 0.18,
     },
     throw: {
-      cooldown: 7,
+      cooldown: 6,
       range: 48,
       projectileSpeed: 48,
       homing: 4,
@@ -291,7 +291,7 @@ export const CONFIG = {
       castTime: 0.14,
     },
     charge: {
-      cooldown: 10,
+      cooldown: 9,
       range: 32,
       speed: 40,
       maxTravelTime: 0.9,
@@ -406,6 +406,85 @@ export const CONFIG = {
       hasWeakPoint: true,
       score: 400,
     } as EnemyConfig,
+    /** Blade rusher: no gun, runs you down and flushes you out of cover. */
+    jackal: {
+      id: 'jackal',
+      shield: 0,
+      armor: 0,
+      health: 120,
+      walkSpeed: 3.4,
+      runSpeed: 7.2,
+      radius: 0.36,
+      height: 1.78,
+      preferredRangeMin: 0,
+      preferredRangeMax: 2,
+      weapon: { boltDamage: 0, boltSpeed: 1, burstCount: 0, burstInterval: 1, spread: 0, telegraph: 0.5, cooldownMin: 1.4, cooldownMax: 1.9, range: 0 },
+      thinkInterval: 0.25,
+      repositionChance: 0,
+      staggerResist: 0.1,
+      mass: 70,
+      hasWeakPoint: false,
+      score: 150,
+    } as EnemyConfig,
+    /** Sniper: a laser sight, a long wind-up and one heavy shot. Break line of sight or move. */
+    ibis: {
+      id: 'ibis',
+      shield: 0,
+      armor: 0,
+      health: 110,
+      walkSpeed: 2.6,
+      runSpeed: 4.4,
+      radius: 0.36,
+      height: 1.86,
+      preferredRangeMin: 20,
+      preferredRangeMax: 55,
+      weapon: { boltDamage: 34, boltSpeed: 150, burstCount: 1, burstInterval: 0.1, spread: 0.1, telegraph: 1.7, cooldownMin: 2.6, cooldownMax: 3.6, range: 90 },
+      thinkInterval: 0.6,
+      repositionChance: 0.04,
+      staggerResist: 0,
+      mass: 75,
+      hasWeakPoint: false,
+      score: 200,
+    } as EnemyConfig,
+  },
+
+  /** The Jackal's attack: a telegraphed lunge with both blades. */
+  jackalSlash: {
+    /** Starts the wind-up inside this range. */
+    range: 3.4,
+    windup: 0.55,
+    /** The lunge direction locks this long before the wind-up ends (dash then to dodge). */
+    lockBefore: 0.27,
+    lungeDistance: 4.2,
+    lungeTime: 0.18,
+    hitRadius: 1.25,
+    damage: 26,
+    knockback: 6,
+    /** Open to anything while recovering. */
+    recover: 0.75,
+  },
+
+  /** The Ibis stops tracking this long before the shot (move then to dodge). */
+  ibisLock: 0.32,
+
+  /** How enemies who have not seen the player notice her. */
+  notice: {
+    /** In front, with line of sight. */
+    range: 17,
+    /** Half-angle of the view cone (cosine). */
+    coneCos: 0.3,
+    /** Seconds to notice at point-blank / at full range. */
+    timeNear: 0.7,
+    timeFar: 2.4,
+    /** Crouched behind cover she is noticed this much slower. */
+    coverScale: 0.4,
+    /** Any direction: footsteps. */
+    closeRange: 4,
+    /** Gunfire and explosions carry this far. */
+    hearRange: 42,
+    /** Friends react to an alarm after this long (min, max). */
+    reactMin: 0.35,
+    reactMax: 0.95,
   },
 
   heavyStomp: {
@@ -446,8 +525,8 @@ export const CONFIG = {
     shield: 3000,
     armor: 3000,
     health: 2800,
-    radius: 0.9,
-    height: 2.9,
+    radius: 1.1,
+    height: 3.6,
     walkSpeed: 2.4,
     /** Phase 3 moves this much faster. */
     enragedSpeed: 1.3,
@@ -458,7 +537,7 @@ export const CONFIG = {
     turnRate: 2.2,
     /** Extra weak point multiplier once Yaw's intel marked the reservoir. */
     weakPointBonusMarked: 1.4,
-    weakRadius: 0.32,
+    weakRadius: 0.4,
     /** Invulnerable roar when a layer breaks. */
     transitionTime: 2.5,
     /** Hop back to the dais after the roar. */
@@ -467,9 +546,9 @@ export const CONFIG = {
     channelMax: 35,
     /** Who comes through the side doors when phase 2 / phase 3 begin. */
     reinforcements: [
-      ['grunt', 'grunt', 'trooper'],
+      ['grunt', 'jackal', 'trooper'],
       ['grunt', 'trooper', 'heavy'],
-    ] as ('grunt' | 'trooper' | 'heavy')[][],
+    ] as ('grunt' | 'trooper' | 'heavy' | 'jackal' | 'ibis')[][],
     /** This much damage inside staggerWindow staggers him (bursts, combos). */
     staggerDamageThreshold: 340,
     staggerWindow: 1.5,
@@ -511,7 +590,7 @@ export const CONFIG = {
         speed: 20,
         maxDistance: 22,
         damage: 34,
-        width: 1.8,
+        width: 2.2,
         /** Running into a wall or column stuns him this long. */
         wallStagger: 2.4,
         cooldown: 8,
@@ -530,6 +609,39 @@ export const CONFIG = {
     phaseTempo: [1, 0.85, 0.7],
     /** Fight-length model (tests): share of time spent shooting, seconds per reinforcement wave. */
     estimate: { uptime: 0.5, waveTime: 16 },
+  },
+
+  /**
+   * Difficulty levels. `damageTaken` scales everything that hurts the player,
+   * `enemyHealth` every enemy layer (the boss gets half of the change),
+   * `tokens` how many enemies may shoot at once, `telegraph` their wind-up
+   * time, `grenades` how keen grunts are to throw. Story is close to the
+   * original tuning; Standard expects cover and powers.
+   */
+  difficulty: {
+    story: { damageTaken: 0.8, enemyHealth: 0.9, tokens: 2, telegraph: 1.15, grenades: 0.6, scoreScale: 0.85 },
+    standard: { damageTaken: 1.3, enemyHealth: 1, tokens: 3, telegraph: 1, grenades: 1, scoreScale: 1 },
+    veteran: { damageTaken: 1.8, enemyHealth: 1.2, tokens: 4, telegraph: 0.85, grenades: 1.4, scoreScale: 1.15 },
+  } as Record<'story' | 'standard' | 'veteran', DifficultyConfig>,
+
+  /** What playing well gives back. */
+  rewards: {
+    /** A KA BURST refunds this share of Snare's remaining cooldown and this much barrier. */
+    comboSnareRefund: 0.7,
+    comboShield: 25,
+    /** Killing with a headshot or weak-point hit. */
+    headshotKillShield: 12,
+    /** A Snare that bounces off shields or armour gives this share back. */
+    blockedSnareRefund: 0.5,
+    /** Damage multiplier on an enemy that has not noticed you. */
+    ambushDamage: 2,
+  },
+
+  /** The beat when the last enemy of a fight drops. */
+  clearBeat: {
+    slowScale: 0.22,
+    slowTime: 0.9,
+    cardTime: 4.5,
   },
 
   /** Explosive ka cells in the levels and the grunts' grenades. */
@@ -619,7 +731,7 @@ export const CONFIG = {
       decals: 48,
       reflectionCards: false,
       domeLife: 6,
-      fogDensity: 0.024,
+      fogDensity: 0.019,
     },
     medium: {
       pixelRatioMax: 1,
@@ -635,7 +747,7 @@ export const CONFIG = {
       decals: 96,
       reflectionCards: true,
       domeLife: 12,
-      fogDensity: 0.02,
+      fogDensity: 0.017,
     },
     high: {
       // 2x on high-DPI laptop screens with MSAA and bloom is too much for
@@ -653,9 +765,20 @@ export const CONFIG = {
       decals: 160,
       reflectionCards: true,
       domeLife: 20,
-      fogDensity: 0.018,
+      fogDensity: 0.016,
     },
   } as Record<QualityLevel, QualityConfig>,
+
+  /** Scene look: haze, exposure and the finishing pass. */
+  look: {
+    /** Depth haze: lighter than the scene so distance silhouettes instead of going black. */
+    fogColor: 0x0b2e3c,
+    exposure: 1.12,
+    vignette: 0.42,
+    grain: 0.035,
+    /** Colour fringing at the frame edge, added to by impacts. */
+    aberration: 0.0012,
+  },
 
   budgets: {
     mediumDrawCalls: 500,
@@ -677,6 +800,15 @@ export const CONFIG = {
     promptFadeTime: 0.3,
   },
 };
+
+export interface DifficultyConfig {
+  damageTaken: number;
+  enemyHealth: number;
+  tokens: number;
+  telegraph: number;
+  grenades: number;
+  scoreScale: number;
+}
 
 export interface QualityConfig {
   pixelRatioMax: number;

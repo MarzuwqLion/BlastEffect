@@ -3,6 +3,68 @@ import { NAMES, OBJECTIVES } from '../../strings';
 import { hologram, obelisk, pylon } from '../kit';
 import type { SectionDef } from './types';
 
+/**
+ * The lake coming back in the ending: dark water that takes the sky's teal
+ * at grazing angles, slow ripples, warm and cold glints, a glow where the
+ * old pool is.
+ */
+function floodMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    fog: true,
+    uniforms: THREE.UniformsUtils.merge([
+      THREE.UniformsLib.fog,
+      { uTime: { value: 0 }, uAlpha: { value: 0 }, uCenter: { value: new THREE.Vector2(0, -306) } },
+    ]),
+    vertexShader: /* glsl */ `
+      #include <common>
+      #include <fog_pars_vertex>
+      varying vec3 vWorld;
+      void main() {
+        vec4 w = modelMatrix * vec4(position, 1.0);
+        vWorld = w.xyz;
+        vec4 mvPosition = viewMatrix * w;
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader: /* glsl */ `
+      #include <common>
+      #include <fog_pars_fragment>
+      uniform float uTime;
+      uniform float uAlpha;
+      uniform vec2 uCenter;
+      varying vec3 vWorld;
+      float ripple(vec2 p) {
+        float a = sin(p.x * 1.7 + uTime * 0.9) * sin(p.y * 2.1 - uTime * 0.7);
+        float b = sin((p.x + p.y) * 3.3 - uTime * 1.3) * sin((p.x - p.y) * 2.7 + uTime * 1.1);
+        float c = sin(length(p - uCenter) * 2.4 - uTime * 1.6);
+        return a * 0.5 + b * 0.3 + c * 0.2;
+      }
+      void main() {
+        vec2 p = vWorld.xz;
+        float h = ripple(p);
+        float e = 0.06;
+        vec3 n = normalize(vec3((h - ripple(p + vec2(e, 0.0))) * 1.1, 1.0, (h - ripple(p + vec2(0.0, e))) * 1.1));
+        vec3 v = normalize(cameraPosition - vWorld);
+        float fres = pow(1.0 - max(dot(n, v), 0.0), 3.0);
+        vec3 col = mix(vec3(0.008, 0.05, 0.075), vec3(0.05, 0.27, 0.34), fres);
+        vec3 r = reflect(-v, n);
+        // The sconces' fire and the dome's light, caught on the ripples.
+        col += vec3(1.0, 0.72, 0.38) * pow(max(dot(r, normalize(vec3(0.35, 0.5, -0.8))), 0.0), 320.0) * 0.6;
+        col += vec3(1.0, 0.72, 0.38) * pow(max(dot(r, normalize(vec3(-0.6, 0.45, 0.65))), 0.0), 320.0) * 0.5;
+        col += vec3(0.45, 0.92, 1.0) * pow(max(dot(r, normalize(vec3(0.0, 0.9, 0.1))), 0.0), 26.0) * 0.5;
+        // Light from under the old pool.
+        float d = length(p - uCenter);
+        col += vec3(0.08, 0.5, 0.6) * (0.6 + 0.4 * h) * smoothstep(10.0, 1.0, d) * 0.4;
+        gl_FragColor = vec4(col, uAlpha * (0.74 + fres * 0.24));
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+        #include <fog_fragment>
+      }`,
+  });
+}
+
 export const ARENA_Y = 9;
 export const ARENA_CENTER = new THREE.Vector3(0, ARENA_Y, -306);
 
@@ -20,7 +82,7 @@ export const basin: SectionDef = {
   nav: { minX: -25, maxX: 25, minZ: -331, maxZ: -282, minY: 8, maxY: 16 },
   music: 'heist',
   dome: 0.55,
-  ambient: [0x5f8088, 0x2a1408, 1.05],
+  ambient: [0x5f8088, 0x2a1408, 1.65],
   objective: OBJECTIVES.boss,
   markers: { boss: [0, ARENA_Y + 3, -322], ledger: [0, ARENA_Y + 2, -328.5] },
   encounters: [],
@@ -80,8 +142,64 @@ export const basin: SectionDef = {
     glyphRing.position.set(0, Y + 0.06, -306);
     b.group.add(glyphRing);
     b.anims.push((t) => (glyphRing.rotation.y = t * 0.1));
-    hologram(b, 0, Y + 7, -306, 'eye', '#40ff9a', 5);
+    const eye = hologram(b, 0, Y + 7, -306, 'eye', '#40ff9a', 5);
+    const eyeLight = b.lights[b.lights.length - 1];
     b.light(0, Y + 3, -306, 0x40ff9a, 5, 14);
+    const lakeLight = b.lights[b.lights.length - 1];
+
+    // The ending: the Crocodile's eye goes out and the lake comes back, a
+    // sheet of water over the whole floor with lotus lamps drifting on it.
+    const floodMat = floodMaterial();
+    const flood = new THREE.Mesh(new THREE.PlaneGeometry(49.6, 49.6).rotateX(-Math.PI / 2), floodMat);
+    flood.position.set(0, Y - 0.05, -306);
+    flood.renderOrder = 2;
+    flood.visible = false;
+    b.group.add(flood);
+    const lamps: THREE.Mesh[] = [];
+    for (let i = 0; i < 18; i++) {
+      const a = i * 2.39996;
+      const r = 5 + ((i * 7) % 11) * 1.55;
+      const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.1, 0.09, 8), i % 3 === 0 ? m.neonGold : m.neonPink);
+      lamp.position.set(Math.cos(a) * r, 0.04, Math.sin(a) * r);
+      lamp.scale.setScalar(0.001);
+      flood.add(lamp);
+      lamps.push(lamp);
+    }
+    const green = new THREE.Color(0x40ff9a);
+    const cyan = new THREE.Color(0x58d8ff);
+    let level = 0;
+    b.anims.push((t) => {
+      if (level <= 0) return;
+      floodMat.uniforms.uTime.value = t;
+      // Lamps bob and drift a little once they are afloat.
+      lamps.forEach((l, i) => {
+        l.position.y = 0.04 + Math.sin(t * 1.3 + i * 1.7) * 0.02;
+        l.rotation.y = t * 0.2 + i;
+      });
+    });
+    game.setPieces.basin = {
+      begin: () => {
+        glyphRing.visible = false;
+      },
+      setEye: (k) => {
+        // Flickers down to nothing; the lake's light turns from his green to water.
+        const flick = k > 0 && k < 1 ? 0.75 + 0.25 * Math.sin(k * 60) : 1;
+        eye.visible = k > 0.02;
+        eye.scale.setScalar(Math.max(0.001, k * flick));
+        eyeLight.intensity = 4 * k;
+        lakeLight.color.copy(cyan).lerp(green, k);
+        lakeLight.intensity = 3.5 + 1.5 * k;
+      },
+      setFlood: (k) => {
+        level = k;
+        flood.visible = k > 0;
+        flood.position.y = Y - 0.05 + k * 0.42;
+        floodMat.uniforms.uAlpha.value = Math.min(1, k * 4);
+        water.visible = k < 0.2;
+        const s = Math.min(1, Math.max(0, (k - 0.25) / 0.4));
+        for (const l of lamps) l.scale.setScalar(Math.max(0.001, s));
+      },
+    };
 
     // Raised platforms with ramps.
     for (const sx of [-1, 1]) {

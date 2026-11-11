@@ -32,8 +32,25 @@ export class Combat {
     const z = this.effectiveZone(e, zone);
     let base = zoneDamage(w, z);
     if (z === 'weak') base *= e.weakPointBonus;
+    // The opening shot on someone who has not seen her hits twice as hard.
+    const ambush = e.unaware;
+    if (ambush) base *= CONFIG.rewards.ambushDamage;
     const stagger = w.id === 'rifle' ? 0.45 : 0;
     const r = this.damage(e, base, w.layers, z, point, dir, { stagger, impulse: w.killImpulse, source: w.id });
+    const stats = this.game.stats.totals;
+    stats.hits++;
+    const crit = z === 'head' || z === 'weak';
+    if (r.total > 0) {
+      if (crit) stats.headshots++;
+      if (ambush) {
+        stats.ambushes++;
+        this.game.hud.reward('ambush');
+      }
+      if (r.killed && crit) {
+        this.game.player.rewardShield(CONFIG.rewards.headshotKillShield);
+        this.game.hud.reward('headshot');
+      }
+    }
     // Zero damage on a live target means an invulnerable barrier: spark like a shield.
     const surface = r.firstLayer === 'shield' || (r.total <= 0 && e.alive) ? 'shield' : r.firstLayer === 'armor' ? 'armor' : 'flesh';
     this.game.fx.impact(point, normal, surface, w.id === 'rifle' ? 1.6 : 1);
@@ -158,6 +175,11 @@ export class Combat {
       this.damage(boss, C.damage, C.layers, 'body', _v2, _v, { source: 'combo', silent: false });
       boss.stagger(C.stagger);
     }
+    // Combos pay for themselves: Snare comes back early and the barrier tops up.
+    this.game.player.powers.refund('pull', CONFIG.rewards.comboSnareRefund);
+    this.game.player.rewardShield(CONFIG.rewards.comboShield);
+    this.game.hud.reward('combo');
+    this.game.stats.totals.combos++;
     this.game.time.hitStop(C.hitStop);
     this.game.fx.comboExplosion(_center, C.radius);
     this.game.explosives.igniteNear(_center, C.radius);

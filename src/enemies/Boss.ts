@@ -185,8 +185,8 @@ export class Crocodile extends Enemy {
     );
     bubbleMat.side = THREE.FrontSide;
     this.bubble = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), bubbleMat);
-    this.bubble.scale.set(2.1, 2.3, 2.1);
-    this.bubble.position.y = 1.6;
+    this.bubble.scale.set(2.6, 2.9, 2.6);
+    this.bubble.position.y = 2.0;
     this.bubble.visible = false;
     this.bubble.renderOrder = 5;
     this.model.root.add(this.bubble);
@@ -951,7 +951,7 @@ export class Crocodile extends Enemy {
       g.director.closeDoor('basinWest');
       this.doorCloseT = -1;
     }
-    g.director.setObjective(OBJECTIVES.boss, 'boss');
+    g.director.setObjective(OBJECTIVES.boss);
     g.hud.bark(NAMES.boss, BOSS_BARKS.resume);
     g.audio.play('phaseChange', { volume: 0.6 });
   }
@@ -975,7 +975,7 @@ export class Crocodile extends Enemy {
 
   private updateLooks(dt: number): void {
     const t = this.game.time.now;
-    this.model.setFlash(this.hitFlashColor.x, this.hitFlashColor.y, this.hitFlashColor.z, this.hitFlash * 0.7);
+    this.model.setFlash(this.hitFlashColor.x, this.hitFlashColor.y, this.hitFlashColor.z, this.hitFlash * 0.5);
     if (this.primed) {
       this.model.setGlow(0.25, 0.95, 1.0, 0.6 + Math.sin(t * 10) * 0.25);
     } else if (this.mode === 'attack' && !this.fired && this.atkTele > 0) {

@@ -61,6 +61,8 @@ export const ENEMY_NAMES = {
   grunt: 'Enforcer',
   trooper: 'Warden',
   heavy: 'Hippo',
+  jackal: 'Jackal',
+  ibis: 'Ibis',
   boss: NAMES.boss,
 };
 
@@ -101,6 +103,7 @@ export const SIGNS = {
 
 export const UI = {
   loading: 'Pressurizing…',
+  holdToSkip: 'Hold to skip',
   pressStart: 'Press any key or button',
   start: 'Start',
   continue: 'Continue',
@@ -117,7 +120,27 @@ export const UI = {
   gpuLostBody: 'Your graphics card dropped the game view (usually too much for it at this quality). Quality is now {quality}. Reload to carry on.',
   deathBody: 'Shields down, vitals gone. The Reach keeps its own.',
   retry: 'Retry from checkpoint',
+  retryEasier: 'Retry on {difficulty}<small>You can change it back in Settings.</small>',
   endTitle: 'Accounts Closed',
+  afterwards: 'Afterwards',
+  next: 'Continue',
+  newGame: 'New game',
+  continueGame: 'Continue',
+  continueFrom: '{place} · {time} · {difficulty}',
+  chooseDifficulty: 'How do you want it?',
+  newGameWarn: 'Starting again replaces your saved game.',
+  rank: 'Rank',
+  score: '{n} / 100',
+  runComplete: 'Run complete',
+  resultKills: 'Crew put down',
+  resultHeadshots: 'Headshots',
+  resultAmbushes: 'Ambushes',
+  resultDeaths: 'Flatlined',
+  resultLogs: "Mari's recordings",
+  resultZones: 'Places found',
+  bestTime: 'Best {time}',
+  newBest: 'New best',
+  toTitle: 'Back to title',
   endCredits: 'Neo Atlantis: Hathor\'s Reach. Thanks for playing.<br>Music: "Void" by dancramp (CC BY 4.0), "Eastern Arctic Dubstep" by VishwaJai and "Desert Loop" by iamoneabe (CC0). Sound: Kenney, Lentikula, the Free Firearm Sound Library and Freesound contributors (CC0). Full list in CREDITS.md.',
   playAgain: 'Play again',
   sensitivity: 'Look sensitivity',
@@ -128,6 +151,14 @@ export const UI = {
   quality: 'Quality',
   textSize: 'Text size',
   aimAssist: 'Aim assist (gamepad)',
+  difficulty: 'Difficulty',
+  diffStory: 'Story',
+  diffStandard: 'Standard',
+  diffVeteran: 'Veteran',
+  diffStoryDesc: 'For the story. Enemies hit softer and fewer shoot at once.',
+  diffStandardDesc: 'The intended game. Standing in the open gets you killed: use cover, powers and the dash.',
+  diffVeteranDesc: 'For a second run. Enemies hit hard, wind up faster and four shoot at once.',
+  shake: 'Screen shake',
   on: 'On',
   off: 'Off',
   low: 'Low',
@@ -158,6 +189,14 @@ export const UI = {
   basAdvice: "Bas's advice: the crew are slow to aim at you while you hover above them",
   intelWeakpoint: 'Intel: weak point marked on the Crocodile',
   intelRoute: 'Intel: service corridor code',
+  rewardCombo: '+{n} BARRIER · SNARE RECHARGED',
+  rewardHeadshot: 'HEADSHOT · +{n} BARRIER',
+  rewardAmbush: 'AMBUSH · DOUBLE DAMAGE',
+  areaClear: 'Area clear',
+  resultTime: 'Time',
+  resultAccuracy: 'Accuracy',
+  resultDamage: 'Damage taken',
+  resultCombos: 'Ka bursts',
   skip: 'Skip',
   continueDialogue: 'Continue',
   meters: 'm',
@@ -180,21 +219,23 @@ export const PROMPTS = {
   talk: '{interact} Talk',
   shoulder: '{swapShoulder} Swap shoulder',
   fire: '{fire} Fire   {aim} Aim',
-  cover:
-    'No cover button: with your weapon out, move into low walls or pillars to take cover. Aim to pop out. Move away to leave.',
+  cover: 'Move into a low wall or pillar to take cover. Aim to lean out.',
   reload: '{reload} Reload',
-  swap: '{swapWeapon} Swap weapon: SMG strips shields, rifle cracks armor',
+  swap: '{swapWeapon} Swap: SMG for shields, rifle for armour',
   powers: '{power1} Ka Snare (primer)   {power2} Ka Lance   {power3} Ka Surge (detonators)',
-  combo: 'Snare an enemy, then hit it with Lance or Surge to set off a KA BURST.',
-  comboShield: 'Snare is blocked by shields and armor. Strip them first.',
+  combo: 'Snare, then Lance or Surge: KA BURST. A burst recharges Snare and your barrier.',
+  comboShield: 'Shields and armour block Snare. Strip them first.',
   hover: 'Aim in mid-air to hover and shoot from above',
   mezzanine: 'Jump-jets reach the mezzanine from the speaker stacks',
-  heavy: 'Hippos are armored: rifle cracks armor fast. Shoot the glowing pack on its back.',
-  rifleRange: 'Long sightlines: the rifle shines here. Aim to scope.',
+  heavy: 'Hippo: rifle its armour, then the glowing pack on its back.',
+  rifleRange: 'Long range: aim with the rifle to scope.',
   melee: '{melee} Melee',
   pickup: 'Walk over ammo crates and med kits to use them',
-  kaCell: 'Glowing ka cells explode when shot. Catch the crew standing next to one.',
-  grenade: 'Grenade! Get off the red ring. They throw when you stay in one spot too long.',
+  kaCell: 'Shoot a glowing ka cell to blow it up.',
+  grenade: 'Grenade! Get off the red ring.',
+  ambush: "They haven't seen you. Your first hit on an unaware enemy does double damage.",
+  jackal: 'Jackal: it lunges where you stood. {dash} Dash aside when the blades flare, then punish it.',
+  ibis: 'Ibis: its laser locks just before the shot. Keep moving, or break its line of sight.',
 };
 
 export const OBJECTIVES = {
@@ -250,6 +291,16 @@ export const BARKS = {
   primed: ['Something has me!', 'Get me down!'],
   allyDown: ['Man down.', 'They got Osei.', 'She is not playing.'],
   grenade: ['Egg over the wall!', 'Fire in the hole.', 'Smoke her out.', 'Catch.'],
+  /** Overheard before they notice her. */
+  idle: [
+    'Double shifts since the lake went dry. I should have stayed a porter.',
+    "Last train's in. Nobody rides the last train.",
+    "He says the ledger pays for itself. It hasn't paid me.",
+    "My cousin had her implant out last month. Says she can't hear the sea any more.",
+    'Quiet night. I hate a quiet night.',
+  ],
+  rush: ['Mine.', 'Hold still.', 'She bleeds like anyone.'],
+  lock: ['Hold still.', 'I have her.', 'One breath.'],
 };
 
 /** The Crocodile's lines during the fight, shown as subtitles. */
@@ -793,9 +844,26 @@ export const DIALOGUE: Record<string, DialogueTree> = {
   },
 };
 
-/** End screen paragraphs; each is shown if its condition holds. */
+/** Captions for the opening and the ending. */
+export const CINE = {
+  openTitle: NAMES.game.toUpperCase(),
+  openSub: `${NAMES.district} · two hundred metres under the Caribbean`,
+  open: [
+    "My sister came down to Hathor's Reach three weeks ago.",
+    'She was photographing a ledger. Two hundred names.',
+    'Eleven days ago she stopped calling.',
+    'So I took the last train down.',
+  ],
+  end: [
+    "Hathor's Reach goes quiet for the first time in three years.",
+    'The Basin was a lake once. Somebody opens the sluices.',
+    'Then, around six, someone puts music back on.',
+    "Imani keeps the last page. The handwriting is her sister's, and it is, for once, the final word.",
+  ],
+};
+
+/** What became of people, shown after the ending; each line appears if its condition holds. */
 export const END_TEXT: { flag?: string; not?: string; text: string }[] = [
-  { text: "Hathor's Reach goes quiet for the first time in three years. Then, around six, someone puts music back on." },
   { flag: 'croc_spared', text: 'The Crocodile goes up the line in restraints, still talking. The Dome Authority gets a ledger with two hundred names in it.' },
   { flag: 'croc_shutdown', text: 'The stolen implants go dark one by one. The Dome Authority finds the Crocodile sitting in his drained lake, very quiet, and a ledger with two hundred names in it.' },
   { flag: 'yaw_left', text: 'Yaw Mensah is on the first train out. Odette gives him the window seat.' },
@@ -807,5 +875,4 @@ export const END_TEXT: { flag?: string; not?: string; text: string }[] = [
   { flag: 'tuned_shield', text: "Kwame keeps the casing he swapped out of Imani's ka-amp in a jar by the till, next to her sister's." },
   { flag: 'mari_letter', text: "Sister Merit lights a lamp in the empty room above the shrine. Someone has to; the Basin is supposed to be full." },
   { flag: 'all_logs', text: 'Imani has all five of the recordings. She plays the last one twice, then never again.' },
-  { text: "Imani keeps the last page. The handwriting is her sister's, and it is, for once, the final word." },
 ];

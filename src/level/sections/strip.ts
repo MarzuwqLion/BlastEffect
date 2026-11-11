@@ -17,7 +17,9 @@ export const strip: SectionDef = {
   nav: { minX: -13, maxX: 45, minZ: -152, maxZ: -40, minY: -1, maxY: 6 },
   music: 'explore',
   dome: 0.5,
-  ambient: [0x3a7a9a, 0x24121c, 0.8],
+  ambient: [0x3a7a9a, 0x24121c, 1.3],
+  // The first two fights of the game: room to learn.
+  ease: { damage: 0.7, tokens: 1 },
   objective: OBJECTIVES.strip1,
   npcs: [
     { id: 'nef', x: 38, y: 0, z: -81.5, yaw: 0, dialogue: 'cook' },
@@ -39,12 +41,14 @@ export const strip: SectionDef = {
     {
       id: 'stripA',
       trigger: [-13, -1, -50, 13, 6, -58],
+      // Three of the crew working the street: one watching it, two talking.
+      staged: true,
       waves: [
         {
           spawns: [
-            { kind: 'grunt', x: -4, y: 0, z: -86 },
-            { kind: 'grunt', x: 3.5, y: 0, z: -91 },
-            { kind: 'grunt', x: 6.5, y: 0, z: -80, delay: 0.4 },
+            { kind: 'grunt', x: -4, y: 0, z: -86, yaw: -Math.PI / 2 },
+            { kind: 'grunt', x: 3.5, y: 0, z: -91, yaw: Math.PI * 0.75 },
+            { kind: 'grunt', x: 6.5, y: 0, z: -80, yaw: Math.PI * 0.3 },
           ],
         },
         {
@@ -77,8 +81,9 @@ export const strip: SectionDef = {
         {
           whenAliveAtMost: 1,
           delay: 1.2,
+          hint: 'jackal',
           spawns: [
-            { kind: 'grunt', x: -3, y: 0, z: -144 },
+            { kind: 'jackal', x: -3, y: 0, z: -144 },
             { kind: 'trooper', x: 3, y: 0, z: -145, delay: 0.6 },
           ],
         },
@@ -90,7 +95,11 @@ export const strip: SectionDef = {
       },
     },
   ],
-  onEnter: (d) => d.setObjective(OBJECTIVES.strip1, 'a'),
+  onEnter: (d) => {
+    // The first crew can be picked off from the station gate.
+    if (d.isCleared('stripA')) d.setObjective(OBJECTIVES.strip2, 'b');
+    else d.setObjective(OBJECTIVES.strip1, 'a');
+  },
   build(b, game) {
     const m = game.mats;
     const p = game.props;

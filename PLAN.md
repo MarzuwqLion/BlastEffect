@@ -187,14 +187,58 @@ Status legend: `[x]` done, `[ ]` not yet, `[~]` partially done (see note).
     grenade throws. Budgets after culling the crowds per section and
     instancing the cells: 138-321 draw calls, 270-430k triangles.
 
+- Review pass ("grade everything, then fix what the grades say"). The
+  review, with grades before and after and what was left out, is
+  `docs/REVIEW.md`. What changed:
+  - **Look.** Rim light, fill and brighter colour-coded palettes on every
+    enemy (`rigKit.ts`), lighter haze per section, a finishing pass
+    (`render/FinishPass.ts`: FXAA where there is no MSAA, vignette, grain,
+    a light grade, fringing on impacts, greying out on death), a hit flash
+    that edges the target instead of whiting it out, and a Crocodile
+    scaled up to 3.6 m.
+  - **Threat and reward.** Difficulty levels (`CONFIG.difficulty`), with
+    the first two sections easier than the setting (`SectionDef.ease`) and
+    an easier retry offered after three deaths on one stretch. Ka bursts
+    refund Snare and restore barrier; headshot kills restore barrier; a
+    blocked Snare refunds half; shorter cooldowns. A slow-motion beat, a
+    result card and a checkpoint where you stand after every fight.
+    Run stats, a rank out of 100 and best times (`game/RunStats.ts`).
+  - **Fights.** Posted crews (`EncounterDef.staged`): the first wave of
+    the strip, club and terrace fights stands at its posts, notices by
+    sight (range, facing, line of sight) and by sound, and tells the rest
+    within a second; the first hit on an unaware enemy does double
+    damage. Two new enemy types: the Jackal (rushes, lunges along a line
+    it locks a moment before it moves) and the Ibis (one heavy shot down
+    a laser that stops tracking just before it fires). Enemies path on
+    their own section's nav grid, so a crew can be fought from the
+    section before it.
+  - **Story on screen.** A cutscene player (`game/Cinematic.ts`: shots,
+    captions typed in the speaker's voice, letterbox, hold to skip) with
+    an opening (the last train in, four lines from Imani) and an ending
+    (the eye over the Basin goes out, the lake comes back, the leviathan
+    passes) in `game/cutscenes.ts`. Mari's recordings are holograms of
+    her (`character/HoloFigure.ts`). Dialogue cuts between close-ups with
+    a key light on the speaker. A synthesised voice per speaker. The
+    epilogue is paged, then a results screen.
+  - **Seams.** Save at every checkpoint, Continue and New game (with a
+    difficulty choice) on the title screen. Mid-section checkpoints
+    remember the objective. No static marker on the boss. Prompts moved
+    to the left edge. Screen shake and difficulty in Settings.
+  - Checked: tests (70), `playthrough` (watches the opening through to
+    the results screen) and `PAD=1 playthrough` (skips it by holding A),
+    `boot`, `boss`, `save`, `crew`, `sections` (139-345 draw calls,
+    269-515k triangles), and the earlier per-milestone scenarios, all
+    with no console errors. Difficulty was set from bot runs without god
+    mode (table in `docs/REVIEW.md`); it has not been played by a person.
+
 ## Done checklist (from the brief)
 
 - [x] Completable start to finish with keyboard/mouse and with gamepad
   (`playthrough`, `PAD=1 playthrough`).
 - [x] Combos work on every enemy type once stripped (`combat`: grunt,
   trooper, heavy; boss phase 3 in `boss`).
-- [x] Tests pass (53), no console errors in any scripted run, medium
-  budgets met in every section (max 321 draw calls, 430k triangles).
+- [x] Tests pass (70), no console errors in any scripted run, medium
+  budgets met in every section (max 345 draw calls, 515k triangles).
 - [x] Pages workflow builds and tests in CI. Deploy needs the one-time
   repo setting (Settings -> Pages -> Source: GitHub Actions).
 - [x] New players get control prompts in context, a controls screen and
@@ -209,4 +253,17 @@ Status legend: `[x]` done, `[ ]` not yet, `[~]` partially done (see note).
 - Start the game at any section: `?section=1..5`; invulnerable: `?god=1`;
   preset dialogue flags: `?flags=intel_weakpoint,yaw_met`.
 - Screenshots: `npm run shots` (writes to `docs/screenshots/`).
-- Headless Chromium is available at `/opt/pw-browsers` (Playwright 1.56).
+- Headless Chromium is available at `/opt/pw-browsers/chromium`.
+- Debug starts (`section`, `autostart`, `flags`) never touch the saved
+  game. `?autostart=1&intro=1` plays the opening without the title.
+- CSS transitions (letterbox, title card, the recording panel) run in
+  real time and only start once the browser draws a frame: a scripted run
+  that steps frames by hand should take a throwaway screenshot, wait
+  about 800 ms, then take the real one.
+- The per-milestone PNGs in `docs/screenshots/` are records of those
+  milestones. `npm run shots` rewrites them, and with the film grain the
+  new files are about twice the size: don't commit the rewrites (the
+  README's own images are small JPEG montages).
+- Balance questions: run the playthrough bot without god mode against a
+  setting (see the calibration table in `docs/REVIEW.md` for what to
+  expect), then change `CONFIG.difficulty` or a section's `ease`.

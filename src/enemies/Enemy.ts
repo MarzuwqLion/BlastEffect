@@ -8,11 +8,13 @@ import type { Game } from '../game/Game';
 import { EnemyModel, type EnemyKind, type EnemyVisual } from './EnemyModel';
 
 const GREN = CONFIG.explosives.grenade;
+const SLASH = CONFIG.jackalSlash;
+const NOTICE = CONFIG.notice;
 
 export type EnemyState =
   | 'inactive' | 'spawning' | 'idle' | 'move' | 'cover'
   | 'telegraph' | 'fire' | 'stagger' | 'lifted' | 'falling'
-  | 'flung' | 'getup' | 'stomp' | 'throw' | 'dead';
+  | 'flung' | 'getup' | 'stomp' | 'throw' | 'slash' | 'dead';
 
 const AI = CONFIG.ai;
 const FLIP = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI);
@@ -58,6 +60,18 @@ export class Enemy {
 
   // AI.
   alerted = false;
+  /** 0..1: how close an unaware enemy is to noticing the player. */
+  notice = 0;
+  /** Counts down to an alarm raised by a noise or a friend (< 0: none). */
+  private alertDelay = -1;
+  /** Seconds since this one noticed her (the HUD flashes a mark). */
+  alertedT = 99;
+  /** Counts down from when the camera last had a clear view of this enemy (the HUD's notice mark). */
+  seenT = 0;
+  /** Jackal lunge: direction (locked late in the wind-up), and whether it has connected. */
+  private readonly slashDir = new THREE.Vector3();
+  private slashLocked = false;
+  private slashHit = false;
   protected thinkT = 0;
   coverPoint: CoverPoint | null = null;
   protected readonly goal = new THREE.Vector3();
@@ -193,6 +207,11 @@ export class Enemy {
     return this.primedT > 0 && this.alive;
   }
 
+  /** Alive and has not noticed the player: open to an ambush. */
+  get unaware(): boolean {
+    return this.alive && !this.alerted && this.kind !== 'boss' && this.state !== 'spawning';
+  }
+
   /** Point to aim powers and bars at. */
   chestPoint(out: THREE.Vector3): THREE.Vector3 {
     if (this.state === 'flung' || this.state === 'dead' || this.state === 'lifted') {
@@ -244,15 +263,29 @@ export class Enemy {
 
   // ---- Lifecycle ----
 
-  spawn(pos: THREE.Vector3, yaw: number, section: number, opts: { alerted?: boolean; delay?: number } = {}): void {
+  spawn(pos: THREE.Vector3, yaw: number, section: number, opts: { alerted?: boolean; delay?: number; instant?: boolean } = {}): void {
     this.active = true;
     this.alive = true;
     this.section = section;
     this.defenses = defensesFor(this.cfg);
+    // Difficulty: tougher layers (the boss takes half of the change).
+    const dh = this.game.difficulty.enemyHealth;
+    const hs = this.kind === 'boss' ? 1 + (dh - 1) * 0.5 : dh;
+    if (hs !== 1) {
+      const d = this.defenses;
+      d.shield = d.shieldMax = Math.round(d.shield * hs);
+      d.armor = d.armorMax = Math.round(d.armor * hs);
+      d.health = d.healthMax = Math.round(d.health * hs);
+    }
     this.position.copy(pos);
     this.velocity.set(0, 0, 0);
     this.yaw = yaw;
     this.alerted = opts.alerted ?? true;
+    this.notice = this.alerted ? 1 : 0;
+    this.alertDelay = -1;
+    this.alertedT = 99;
+    this.seenT = 0;
+    this.los = false;
     this.setState('spawning');
     this.stateT = -(opts.delay ?? 0);
     this.attackCd = 0.8 + Math.random() * 1.2;
@@ -280,7 +313,70 @@ export class Enemy {
     this.model.setFlash(1, 1, 1, 0);
     this.model.setGlow(0, 0, 0, 0);
     if (this.shieldBubble) this.shieldBubble.visible = this.defenses.shield > 0;
+    if (opts.instant) {
+      // Already at their post when the player arrives: no materialise effect.
+      this.model.setDissolve(0);
+      this.setState(this.alerted ? 'move' : 'idle');
+      this.spawnGrace = 0;
+    }
     this.syncModel();
+  }
+
+  /** Becomes aware of the player (seen, shot at, or warned) and tells the director. */
+  alert(): void {
+    if (this.alerted || !this.alive) return;
+    this.alerted = true;
+    this.notice = 1;
+    this.alertDelay = -1;
+    this.alertedT = 0;
+    // A beat to react before the first shot.
+    this.attackCd = Math.max(this.attackCd, 0.7 + Math.random() * 0.5);
+    if (this.state === 'idle') {
+      this.setState('move');
+      this.thinkT = 0;
+    }
+    this.game.director.onEnemyAlerted(this);
+  }
+
+  /** Heard something (a shot, a blast, a friend shouting): alert after `delay` seconds. */
+  hear(delay: number): void {
+    if (this.alerted || !this.alive) return;
+    if (this.alertDelay < 0 || delay < this.alertDelay) this.alertDelay = delay;
+  }
+
+  /** Unaware: fill the notice meter while the player is in view, and count down noises. */
+  private updateNotice(dt: number): void {
+    if (this.alertDelay >= 0) {
+      this.alertDelay -= dt;
+      if (this.alertDelay <= 0) {
+        this.alert();
+        return;
+      }
+    }
+    const p = this.game.player;
+    if (!p.alive) return;
+    const d = this.distToPlayer;
+    const dy = Math.abs(p.position.y - this.position.y);
+    let rate = 0;
+    if (d < NOTICE.closeRange && dy < 2.5) {
+      rate = 1 / 0.35;
+    } else if (this.los && d < NOTICE.range * (this.kind === 'ibis' ? 1.6 : 1)) {
+      // Facing: model forward is (-sin yaw, -cos yaw).
+      const fx = -Math.sin(this.yaw);
+      const fz = -Math.cos(this.yaw);
+      const dot = ((p.position.x - this.position.x) * fx + (p.position.z - this.position.z) * fz) / Math.max(0.01, d);
+      if (dot > NOTICE.coneCos) {
+        const k = Math.min(1, d / NOTICE.range);
+        rate = 1 / (NOTICE.timeNear + (NOTICE.timeFar - NOTICE.timeNear) * k);
+        if (p.crouched) rate *= NOTICE.coverScale;
+      }
+    }
+    if (rate > 0) {
+      this.notice = Math.min(1, this.notice + rate * dt);
+      if (this.notice >= 1) this.alert();
+    } else {
+      this.notice = Math.max(0, this.notice - dt * 0.35);
+    }
   }
 
   deactivate(): void {
@@ -344,7 +440,7 @@ export class Enemy {
     if (r.total <= 0) return r;
     this.barT = CONFIG.ui.enemyBarLinger;
     this.lastDamageLayer = r.firstLayer ?? 'health';
-    this.alerted = true;
+    this.alert();
     this.underFireT = 1.5;
     this.hitFlash = 1;
     if (r.firstLayer === 'shield') this.hitFlashColor.set(0.3, 0.6, 1);
@@ -387,6 +483,7 @@ export class Enemy {
   /** Pull: lift helplessly. Caller checks canBePrimed. */
   lift(duration: number, primeGrace: number): void {
     if (!this.alive) return;
+    this.alert();
     this.releaseToken();
     this.releaseCover();
     if (this.state === 'flung') {
@@ -404,6 +501,7 @@ export class Enemy {
 
   /** Physics fling (Throw, combo, death). */
   fling(vel: THREE.Vector3, spin = 4): void {
+    this.alert();
     this.releaseToken();
     this.releaseCover();
     if (this.state !== 'flung' && this.state !== 'dead') {
@@ -422,6 +520,7 @@ export class Enemy {
 
   die(dir: THREE.Vector3 | null, impulse: number): void {
     if (!this.alive) return;
+    this.alert();
     this.alive = false;
     this.releaseToken();
     this.releaseCover();
@@ -449,6 +548,8 @@ export class Enemy {
   update(dt: number): void {
     if (!this.active) return;
     this.stateT += dt;
+    this.alertedT += dt;
+    this.seenT -= dt;
     this.hitFlash = Math.max(0, this.hitFlash - dt * 6);
     this.shieldHitT = Math.max(0, this.shieldHitT - dt * 4);
     this.barT = Math.max(0, this.barT - dt);
@@ -586,14 +687,16 @@ export class Enemy {
     if (this.thinkT <= 0) {
       this.thinkT = this.cfg.thinkInterval * (0.8 + Math.random() * 0.4);
       this.updateLos();
-      if (!this.alerted && (this.los && this.distToPlayer < AI.alertRadius)) this.alerted = true;
-      if (this.alerted && player.alive && this.state !== 'telegraph' && this.state !== 'fire' && this.state !== 'stomp' && this.state !== 'throw') this.think();
+      if (this.alerted && player.alive && this.state !== 'telegraph' && this.state !== 'fire' && this.state !== 'stomp' && this.state !== 'throw' && this.state !== 'slash') this.think();
     }
+    if (!this.alerted) this.updateNotice(dt);
 
     switch (this.state) {
       case 'idle':
         this.velocity.x *= 0.8;
         this.velocity.z *= 0.8;
+        // At their post: a slow look from side to side.
+        if (!this.alerted) this.yaw += Math.sin(this.stateT * 0.5 + this.id) * 0.24 * dt;
         break;
       case 'move':
       case 'cover':
@@ -611,6 +714,9 @@ export class Enemy {
         break;
       case 'throw':
         this.updateThrow(dt);
+        break;
+      case 'slash':
+        this.updateSlash(dt);
         break;
     }
     this.moveKinematic(dt, false);
@@ -640,17 +746,39 @@ export class Enemy {
       case 'heavy':
         this.thinkHeavy();
         break;
+      case 'jackal':
+        this.thinkJackal();
+        break;
+      case 'ibis':
+        // Holds long-range cover; backs off when she closes in.
+        this.thinkGrunt(13);
+        break;
       default:
         break;
     }
   }
 
-  private thinkGrunt(): void {
+  /** Run her down: straight for the player, re-planned often. */
+  private thinkJackal(): void {
+    const pp = this.game.player.position;
+    const nav = this.game.director.navOf(this.section);
+    if (!nav) return;
+    // Aim for a point just short of her so the pack doesn't pile onto one spot.
+    const ang = Math.atan2(this.position.x - pp.x, this.position.z - pp.z) + (Math.random() - 0.5) * 0.9;
+    _v.set(pp.x + Math.sin(ang) * 1.4, pp.y, pp.z + Math.cos(ang) * 1.4);
+    if (nav.randomNear(_v, 1.2, _v2, 3)) {
+      this.releaseCover();
+      this.setGoal(_v2);
+      this.moveSpeed = this.distToPlayer > 5 ? this.cfg.runSpeed : this.cfg.runSpeed * 0.8;
+    }
+  }
+
+  private thinkGrunt(fleeRange: number = AI.closeRangeFlee): void {
     const player = this.game.player;
     const pp = player.position;
     const cp = this.coverPoint;
     const compromised = cp ? !this.game.cover.protects(cp, pp) : true;
-    const tooClose = this.distToPlayer < AI.closeRangeFlee;
+    const tooClose = this.distToPlayer < fleeRange;
     const hurt = this.defenses.health < this.cfg.health * AI.retreatHealthFraction;
     let want = compromised || tooClose || (!this.hasGoal && !cp);
     if (!want && Math.random() < this.cfg.repositionChance) want = true;
@@ -673,7 +801,7 @@ export class Enemy {
     const out = _v3;
     let found = false;
     const baseAngle = Math.atan2(this.position.x - pp.x, this.position.z - pp.z);
-    const nav = this.game.director.nav;
+    const nav = this.game.director.navOf(this.section);
     for (let i = 0; i < 10; i++) {
       const ang = baseAngle + (Math.random() - 0.5) * 2 * (AI.flankAngleDeg * DEG + 0.5);
       const r = this.cfg.preferredRangeMin + Math.random() * (this.cfg.preferredRangeMax - this.cfg.preferredRangeMin);
@@ -722,7 +850,7 @@ export class Enemy {
       const ang = Math.atan2(this.position.x - pp.x, this.position.z - pp.z) + (Math.random() - 0.5) * 0.8;
       const r = Math.max(this.cfg.preferredRangeMin, Math.min(this.distToPlayer - 4, 16));
       _v.set(pp.x + Math.sin(ang) * r, pp.y, pp.z + Math.cos(ang) * r);
-      const nav = this.game.director.nav;
+      const nav = this.game.director.navOf(this.section);
       if (nav && nav.randomNear(_v, 2, _v2, 4)) {
         this.setGoal(_v2);
         this.moveSpeed = this.cfg.walkSpeed;
@@ -744,7 +872,7 @@ export class Enemy {
   protected pickCover(minR: number, maxR: number): boolean {
     const pp = this.game.player.position;
     const points = this.game.cover.points;
-    const nav = this.game.director.nav;
+    const nav = this.game.director.navOf(this.section);
     let best: CoverPoint | null = null;
     let bestScore = -Infinity;
     const now = this.game.time.now;
@@ -780,7 +908,7 @@ export class Enemy {
 
   protected pickOpenSpot(minR: number, maxR: number): void {
     const pp = this.game.player.position;
-    const nav = this.game.director.nav;
+    const nav = this.game.director.navOf(this.section);
     if (!nav) return;
     const ang = Math.atan2(this.position.x - pp.x, this.position.z - pp.z) + (Math.random() - 0.5) * 1.2;
     const r = minR + Math.random() * (maxR - minR);
@@ -805,7 +933,7 @@ export class Enemy {
     const desired = _v.set(0, 0, 0);
     if (this.hasGoal) {
       this.repathT -= dt;
-      const nav = this.game.director.nav;
+      const nav = this.game.director.navOf(this.section);
       if (this.repathT <= 0 && nav) {
         this.repathT = 1.5 + Math.random();
         this.pathCount = nav.findPath(this.position, this.goal, this.path);
@@ -855,8 +983,19 @@ export class Enemy {
 
   protected tryAttack(): void {
     if (!this.alerted || this.attackCd > 0 || this.spawnGrace > 0) return;
+    if (this.kind === 'jackal') {
+      const p = this.game.player;
+      if (p.alive && this.distToPlayer < SLASH.range && Math.abs(p.position.y - this.position.y) < 1.6 && this.los) {
+        this.slashLocked = false;
+        this.slashHit = false;
+        this.setState('slash');
+        this.game.director.bark(this.kind, 'rush', 0.3);
+        this.game.audio.play('enemyCharge', { at: this.position, volume: 0.8, rate: 1.5 });
+      }
+      return;
+    }
     if (this.kind === 'grunt' && this.grenadeCd <= 0 && this.game.explosives.canThrow(this.position)) {
-      if (Math.random() < GREN.chance) {
+      if (Math.random() < GREN.chance * this.game.difficulty.grenades) {
         // She's dug in: lob one over to flush her out.
         this.grenadeCd = GREN.cooldown;
         this.releaseToken();
@@ -877,24 +1016,31 @@ export class Enemy {
     }
     this.hasToken = true;
     this.setState('telegraph');
-    let wind = Math.max(this.cfg.weapon.telegraph, AI.minTelegraph);
+    let wind = Math.max(this.cfg.weapon.telegraph, AI.minTelegraph) * this.game.difficulty.telegraph;
     // Bas's advice: the crew are bad at looking up. Hovering above them
     // buys a slower wind-up.
     if (player.hovering && player.position.y - this.position.y > 1.5 && this.game.director.flags.has('heard_grandmother')) wind *= CONFIG.tuning.lookUpTelegraphScale;
     this.telegraphT = wind;
     this.telegraphTotal = wind;
-    this.game.audio.play(this.kind === 'heavy' ? 'heavyWindup' : 'enemyCharge', { at: this.position, volume: 0.7 });
+    if (this.kind === 'ibis') {
+      this.game.director.bark(this.kind, 'lock', 0.3);
+      this.game.audio.play('enemyCharge', { at: this.position, volume: 0.9, rate: 0.55 });
+    } else this.game.audio.play(this.kind === 'heavy' ? 'heavyWindup' : 'enemyCharge', { at: this.position, volume: 0.7 });
   }
 
   private updateTelegraph(dt: number): void {
+    const before = this.telegraphT;
     this.telegraphT -= dt;
+    // The Ibis's lock: a beep when the laser stops following.
+    if (this.kind === 'ibis' && before > CONFIG.ibisLock && this.telegraphT <= CONFIG.ibisLock) this.game.audio.play('grenadeBeep', { at: this.position, volume: 1, rate: 1.6 });
     // Keep strafing slowly while winding up (troopers move more).
     const moveK = this.kind === 'trooper' ? 0.5 : 0.1;
     this.velocity.x *= 1 - Math.min(1, dt * 6) * (1 - moveK);
     this.velocity.z *= 1 - Math.min(1, dt * 6) * (1 - moveK);
-    this.game.player.aimPoint(this.aimTarget);
+    // The Ibis stops tracking just before the shot: keep moving and it misses.
+    if (this.kind !== 'ibis' || this.telegraphT > CONFIG.ibisLock) this.game.player.aimPoint(this.aimTarget);
     const total = this.telegraphTotal;
-    this.game.fx.telegraphLine(this, this.model.muzzleWorld(_v), this.aimTarget, 1 - this.telegraphT / total);
+    this.game.fx.telegraphLine(this, this.model.muzzleWorld(_v), this.aimTarget, 1 - this.telegraphT / total, this.kind === 'ibis' ? 'violet' : 'red');
     if (this.kind === 'heavy') this.model.spinUp(dt * 30 * (1 - this.telegraphT / total));
     if (this.stateT > 0.25 && Math.floor(this.stateT * 4) !== Math.floor((this.stateT - dt) * 4)) this.updateLos();
     if (!this.los && this.stateT > 0.3) {
@@ -932,6 +1078,15 @@ export class Enemy {
     const w = this.cfg.weapon;
     const muzzle = this.model.muzzleWorld(_v);
     const player = this.game.player;
+    if (this.kind === 'ibis') {
+      // One heavy round at the point the laser locked on.
+      const d = _v2.copy(this.aimTarget).sub(muzzle).normalize();
+      this.game.bolts.spawn(muzzle, d, w.boltSpeed, w.boltDamage, 0xd070ff, this, { size: 1.9 });
+      this.model.kickRecoil(1.4);
+      this.game.fx.enemyMuzzle(muzzle, d);
+      this.game.audio.play('ibisShot', { at: muzzle, volume: 0.9 });
+      return;
+    }
     player.aimPoint(this.aimTarget);
     // Slight lead on the player's velocity.
     const travel = muzzle.distanceTo(this.aimTarget) / w.boltSpeed;
@@ -962,6 +1117,48 @@ export class Enemy {
     if (this.stateT >= GREN.windup + 0.4) {
       this.attackCd = Math.max(this.attackCd, 1.2);
       this.setState(this.coverPoint && !this.hasGoal ? 'cover' : 'move');
+    }
+  }
+
+  /** Jackal: wind up (the tell), lunge along a locked line, then stand open for a moment. */
+  private updateSlash(dt: number): void {
+    const p = this.game.player;
+    const t = this.stateT;
+    if (t < SLASH.windup) {
+      this.velocity.x *= 0.7;
+      this.velocity.z *= 0.7;
+      if (!this.slashLocked && t >= SLASH.windup - SLASH.lockBefore) {
+        this.slashLocked = true;
+        this.slashDir.set(p.position.x - this.position.x, 0, p.position.z - this.position.z);
+        if (this.slashDir.lengthSq() < 1e-4) this.slashDir.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
+        this.slashDir.normalize();
+        this.game.audio.play('meleeSwing', { at: this.position, volume: 0.9, rate: 0.8 });
+      }
+      return;
+    }
+    const lt = t - SLASH.windup;
+    if (lt < SLASH.lungeTime) {
+      const speed = SLASH.lungeDistance / SLASH.lungeTime;
+      this.velocity.x = this.slashDir.x * speed;
+      this.velocity.z = this.slashDir.z * speed;
+      if (!this.slashHit && p.alive && Math.abs(p.position.y - this.position.y) < 1.8 && Math.hypot(p.position.x - this.position.x, p.position.z - this.position.z) < SLASH.hitRadius) {
+        this.slashHit = true;
+        p.takeDamage(SLASH.damage, this.position);
+        p.addKnockback(this.slashDir.x * SLASH.knockback, 2.5, this.slashDir.z * SLASH.knockback);
+        this.game.audio.play('meleeHit', { at: this.position, volume: 0.9 });
+        this.chestPoint(_v);
+        this.game.fx.impact(_v.addScaledVector(this.slashDir, 0.8), _v2.copy(this.slashDir).negate(), 'armor', 1.4);
+      }
+      if (Math.random() < dt * 40) this.game.fx.dust(this.position, 0.4);
+      return;
+    }
+    // Recovery: open to anything.
+    this.velocity.x *= 0.75;
+    this.velocity.z *= 0.75;
+    if (lt >= SLASH.lungeTime + SLASH.recover) {
+      this.attackCd = this.cfg.weapon.cooldownMin + Math.random() * (this.cfg.weapon.cooldownMax - this.cfg.weapon.cooldownMin);
+      this.setState('move');
+      this.thinkT = 0;
     }
   }
 
@@ -1015,7 +1212,11 @@ export class Enemy {
     let target = this.yaw;
     const pp = this.game.player.position;
     const facePlayer = this.alerted && (this.los || this.state === 'telegraph' || this.state === 'fire' || this.state === 'throw' || this.state === 'cover' || this.distToPlayer < 15);
-    if (facePlayer) {
+    if (this.state === 'slash' && this.slashLocked) {
+      target = Math.atan2(-this.slashDir.x, -this.slashDir.z);
+    } else if (!this.alerted && this.state === 'idle') {
+      return; // at their post: the idle look-around owns the yaw
+    } else if (facePlayer) {
       target = Math.atan2(-(pp.x - this.position.x), -(pp.z - this.position.z));
     } else if (Math.hypot(this.velocity.x, this.velocity.z) > 0.5) {
       target = Math.atan2(-this.velocity.x, -this.velocity.z);
@@ -1041,7 +1242,7 @@ export class Enemy {
 
     // Hit flash / prime glow / telegraph glow.
     const f = this.hitFlash;
-    this.model.setFlash(this.hitFlashColor.x, this.hitFlashColor.y, this.hitFlashColor.z, f * 0.9);
+    this.model.setFlash(this.hitFlashColor.x, this.hitFlashColor.y, this.hitFlashColor.z, f * 0.6);
     if (this.primed) {
       const pulse = 0.6 + Math.sin(this.game.time.now * 10) * 0.25;
       this.model.setGlow(0.25, 0.95, 1.0, pulse);
@@ -1050,6 +1251,10 @@ export class Enemy {
       this.model.setGlow(1, 0.35, 0.1, (1 - this.telegraphT / total) * 0.9);
     } else if (this.state === 'stomp') {
       this.model.setGlow(1, 0.45, 0.1, Math.min(1, this.stateT / CONFIG.heavyStomp.telegraph));
+    } else if (this.state === 'slash') {
+      // Blades light up through the wind-up and the lunge, then fade.
+      const k = this.stateT < SLASH.windup + SLASH.lungeTime ? Math.min(1, this.stateT / SLASH.windup) : Math.max(0, 1 - (this.stateT - SLASH.windup - SLASH.lungeTime) * 3);
+      this.model.setGlow(1, 0.15, 0.25, k * 0.9);
     } else {
       this.model.setGlow(0, 0, 0, 0);
     }
@@ -1090,6 +1295,7 @@ export class Enemy {
       : this.state === 'stagger' || this.state === 'getup' ? 'stagger'
       : this.state === 'stomp' ? 'stomp'
       : this.state === 'throw' ? 'throw'
+      : this.state === 'slash' ? 'slash'
       : 'normal';
     let pitch = 0;
     if (this.alerted) {
@@ -1105,7 +1311,7 @@ export class Enemy {
       crouch: this.crouchBlend,
       pitch,
       mode,
-      modeT: this.state === 'stomp' ? Math.min(1, this.stateT / CONFIG.heavyStomp.telegraph) : this.state === 'throw' ? this.stateT / GREN.windup : this.stateT,
+      modeT: this.state === 'stomp' ? Math.min(1, this.stateT / CONFIG.heavyStomp.telegraph) : this.state === 'throw' ? this.stateT / GREN.windup : this.state === 'slash' ? this.stateT / SLASH.windup : this.stateT,
       spin: 0,
     });
   }

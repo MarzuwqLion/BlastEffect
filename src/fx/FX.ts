@@ -548,7 +548,7 @@ export class FX {
 
   // ---- Enemies ----
 
-  telegraphLine(owner: unknown, from: THREE.Vector3, to: THREE.Vector3, progress: number, tint: 'red' | 'green' = 'red'): void {
+  telegraphLine(owner: unknown, from: THREE.Vector3, to: THREE.Vector3, progress: number, tint: 'red' | 'green' | 'violet' = 'red'): void {
     let l = this.lines.find((x) => x.owner === owner);
     if (!l) {
       l = this.lines.find((x) => x.owner === null);
@@ -561,11 +561,13 @@ export class FX {
     _v.divideScalar(len);
     l.mesh.position.copy(from);
     l.mesh.quaternion.setFromUnitVectors(_z, _v);
-    const w = 0.006 + progress * 0.012;
+    // A sniper's laser is a thin steady line; everyone else's swells as they wind up.
+    const w = tint === 'violet' ? 0.004 + progress * 0.004 : 0.006 + progress * 0.012;
     l.mesh.scale.set(w, w, len);
     const mat = l.mesh.material as THREE.MeshBasicMaterial;
     mat.opacity = 0.25 + progress * 0.6 + (progress > 0.8 ? Math.sin(performance.now() * 0.05) * 0.2 : 0);
     if (tint === 'green') mat.color.setRGB(0.4, 2.5, 0.9 + progress * 0.4);
+    else if (tint === 'violet') mat.color.setRGB(1.5 + progress, 0.45, 2.6);
     else mat.color.setRGB(2.5, 0.35 + progress * 0.3, 0.2);
     l.mesh.visible = true;
     // A charging glow at the muzzle.

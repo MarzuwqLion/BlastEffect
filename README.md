@@ -6,10 +6,15 @@ level runs from the train dock, up the neon strip, through a nightclub and
 over the terraces to the Crocodile's drained sacred lake, with three
 optional places off the route and people to talk to along the way. It
 takes 15-25 minutes. The combat is cover, two guns and three ka powers that
-combo off each other, plus ka cells to blow up and grenades to dodge.
+combo off each other, against five kinds of enemy, some of whom haven't
+seen you yet. Three difficulty levels, a rank and best time at the end,
+and the game saves at every checkpoint.
 Built with three.js, Rapier and TypeScript. Every model and texture is
 built in code; music and sound effects are CC0/CC-BY recordings (see
 [CREDITS.md](CREDITS.md)).
+
+[docs/REVIEW.md](docs/REVIEW.md) is a graded design review of the game
+(mechanics, graphics, story, polish) and what was changed in answer to it.
 
 **Play:** https://marzuwqlion.github.io/BlastEffect/ (after the one-time
 Pages setup below).
@@ -44,9 +49,71 @@ and aim to pop out. To combo, Snare a target whose shields and armor are
 gone, then hit it with a Lance or a Surge.
 
 The settings menu (from the title screen or pause) has look sensitivity,
-invert Y, master/music/SFX volume, quality (low/medium/high), text size
-and aim assist (gamepad only, on by default). Losing pointer lock pauses
-the game.
+invert Y, master/music/SFX volume, difficulty, quality (low/medium/high),
+text size, aim assist (gamepad only, on by default) and screen shake.
+Losing pointer lock pauses the game. Cutscenes are skipped by holding
+Enter/E (A on a gamepad).
+
+## Fights
+
+![The five crew types: Enforcer, Warden, Hippo, Jackal, Ibis](docs/screenshots/crew.jpg)
+
+| Enemy | What it does | Answer |
+| --- | --- | --- |
+| **Enforcer** (teal) | Holds cover, fires bursts, lobs a grenade if you camp | Anything. Snare then Lance for a ka burst |
+| **Warden** (blue, shield bubble) | Pushes and flanks; the shield blocks Snare | SMG the shield off first |
+| **Hippo** (orange, armoured) | Walks you down with a rotary gun, stomps up close | Rifle the armour, then the pack on its back |
+| **Jackal** (red, blades) | Sprints at you and lunges where you stood | Dash aside when the blades flare, or Snare it: it has no armour |
+| **Ibis** (violet, long rifle) | One heavy shot down a laser that locks just before it fires | Keep moving, break its line of sight, or out-range it with the rifle |
+
+**Posted crews.** Three of the fights begin with the crew already at
+their posts and unaware of you: an eye above each head fills as they
+notice you. You choose where the fight starts and who gets the first hit,
+and that first hit on an unaware enemy does double damage. Gunfire and
+explosions are heard; walls and cover hide you. Once one of them knows,
+the rest know within a second.
+
+**Playing well pays.** A ka burst recharges Snare and restores barrier; a
+headshot or weak-point kill restores a little barrier; a Snare that hits a
+shield refunds half its cooldown. When the last enemy of a fight drops,
+time slows, a card shows your time, accuracy, damage taken and bursts,
+and the game takes a checkpoint where you stand.
+
+**Difficulty.** Chosen when you start a new game and changeable in
+Settings at any time.
+
+| | Damage you take | Enemies firing at once | Notes |
+| --- | --- | --- | --- |
+| Story | 0.8x | 2 | Slower wind-ups, fewer grenades |
+| Standard | 1.3x | 3 | Standing in the open gets you killed |
+| Veteran | 1.8x | 4 | Tougher enemies, faster wind-ups, more grenades |
+
+The first two fights go easier than those numbers on every setting (the
+strip takes 0.7x damage and one fewer shooter, the club 0.88x), and after
+three deaths on the same stretch the death screen offers the next setting
+down.
+
+**Rank.** The end of a run shows time, accuracy, bursts, headshots,
+ambushes, deaths and what you found, scored out of 100 (S/A/B/C/D), with
+your best time and score per difficulty kept in the browser.
+
+**Saving.** Every checkpoint (each new section, after each fight and
+after each conversation) is written to the browser's local storage. The
+title screen offers **Continue** when there is a game in progress; **New
+game** replaces it. Finishing the game clears it.
+
+![Choosing a difficulty, Continue on the title screen, a posted crew, the results screen](docs/screenshots/pass.jpg)
+
+## Story
+
+The game opens on the last train pulling into Reach Station while Imani
+says, in four lines, why she is on it. It ends in the Basin: the eye
+over the Crocodile's lake goes out, the water comes back, and what
+became of everyone you met is told a few lines at a time before the
+results. Conversations cut between close-ups, and every speaker has a
+voice of their own (a pitch, not words: the lines are still read).
+
+![The opening title, Imani on the platform, one of Mari's recordings, the Basin refilled](docs/screenshots/story.jpg)
 
 ## Off the main path
 
@@ -64,8 +131,10 @@ talk to. A toast names each place the first time you walk in.
 
 Mari's five holo-recordings are hidden in these places and along the
 route (the Glass, the souk, behind the club's bar, Mari's room, by the
-Basin gate). Everything you do here carries into the ending text, and
-the dialogue choices that matter survive a death.
+Basin gate). Each is a hologram of her standing where she recorded it:
+she turns to you as you come close, says her piece, and switches off.
+Everything you do here carries into the epilogue, and the dialogue
+choices that matter survive a death.
 
 People live in the Reach: travellers at the dock, shoppers on the strip
 and in the market, dancers in the club, worshippers at the shrine. When
@@ -119,9 +188,14 @@ do, the workflow's build job still passes but the deploy job fails with
   | `god=1` | Player takes no damage |
   | `quality=low\|medium\|high` | Override the quality preset |
   | `debug=1` | Show the debug overlay from the start |
-  | `autostart=1` | Skip the title screen |
+  | `autostart=1` | Skip the title screen (and the opening) |
+  | `intro=1` | With `autostart=1`: play the opening anyway |
   | `flags=a,b` | Preset dialogue flags, e.g. `flags=intel_weakpoint` marks the boss weak point |
   | `manual=1` | Don't run the frame loop; the game steps only when told (automation) |
+  | `save=1` | Keep a saved game even on a debug start |
+
+  A start with `section`, `autostart` or `flags` never reads or writes the
+  saved game, so debugging can't overwrite a real run.
 
 - **Scripted checks** (headless Chromium via Playwright; build first):
   `npm run build && npm run shots -- <scenario>`. Screenshots go to
@@ -129,8 +203,12 @@ do, the workflow's build job still passes but the deploy job fails with
   `boot` (real-time start from the title screen, as a player would:
   fails if the camera doesn't follow Imani), `sections` (every section,
   draw calls and triangles), `playthrough`
-  (a bot plays title to end screen; `PAD=1` drives it through a simulated
-  gamepad), `boss`, `combat` (time to kill and combos per enemy type),
+  (a bot plays from the title through the opening to the results screen;
+  `PAD=1` drives it through a simulated gamepad and skips the opening by
+  holding A), `save` (new game, play, reload, Continue, compare), `crew`
+  (posted crews notice and react, the ambush bonus, Jackal and Ibis
+  attacks land on a still target and miss a moving one), `boss`, `combat`
+  (time to kill and combos per enemy type),
   `movement`, `camera`, `cover`, `gamepad`, `dialogue`, `title`,
   `closeup`, `anims`, `fight`, `tour`.
 - **Console:** `window.__game` exposes the running game (for example
@@ -151,16 +229,23 @@ Every gameplay number lives in **`src/config.ts`**: movement (speeds,
 jump, hover, dash), camera (FOVs, distances, shake, recoil), cover,
 shields/health and regen, weapons (damage, fire rate, magazines, reload,
 layer multipliers, headshot and weak point), powers (cooldowns, damage,
-combo radius and stagger), each enemy type, AI (attack tokens, minimum
-telegraph time, cover and flanking), the boss (layers, attacks, phase
-tempo, reinforcements), hit-stop and feedback, quality presets and
-performance budgets. Unit tests in `tests/` check the feel targets
+combo radius and stagger), each enemy type, the Jackal's lunge and the
+Ibis's lock, how unaware enemies notice (`notice`), the three difficulty
+levels (`difficulty`), what skilled play gives back (`rewards`), AI
+(attack tokens, minimum telegraph time, cover and flanking), the boss
+(layers, attacks, phase tempo, reinforcements), hit-stop and feedback,
+the look (`look`: exposure, haze colour, vignette, grain), quality
+presets and performance budgets. The rank formula is `scoreRun` in
+`src/game/RunStats.ts`; which fights start with a posted crew, and how
+much easier the opening sections run, is in each section's definition
+(`staged`, `ease`). Unit tests in `tests/` check the feel targets
 (time to kill per enemy, boss fight length), so `npm test` tells you
 when a change moves one out of range.
 
 All names and text are in **`src/strings.ts`**: characters, places, UI
-labels, prompts, objectives, enemy barks, the dialogue trees and the end
-screen. The dialogue trees are validated by `tests/dialogue.test.ts`
+labels, prompts, objectives, enemy barks, the dialogue trees, the opening
+and ending captions and the epilogue. The camera shots of the opening and
+ending are in `src/game/cutscenes.ts`. The dialogue trees are validated by `tests/dialogue.test.ts`
 (no dead ends, no missing or unreachable nodes, no loops without an exit,
 and at least one choice sets a flag that pays off later).
 
@@ -182,15 +267,18 @@ smgShot: { src: ['audio/sfx/smg1.mp3', 'audio/sfx/smg2.mp3'], bus: 'sfx', volume
 ```
 
 An entry without `src` (or whose file fails to load) falls back to a
-placeholder synthesized at startup (`src/audio/synth.ts`, and
-`src/audio/music.ts` for the score). Music and ambience stream and
+sound synthesized at startup (`src/audio/synth.ts`, and
+`src/audio/music.ts` for the score). The speakers' voices are synthesized
+on purpose: three short vowels played at a different pitch per character
+(`VOICES` in the manifest) as their lines type out. Recorded voice-over
+would replace them in `src/ui/Dialogue.ts`, one file per line. Music and ambience stream and
 crossfade; each section and optional area picks its cue in its
 definition under `src/level/sections/`.
 
 ## Performance
 
-On the medium preset each section draws 140-320 draw calls and about
-270-430k triangles from its checkpoint view (budget: under 500 and 1.5M). Most of
+On the medium preset each section draws 140-345 draw calls and about
+270-515k triangles from its checkpoint view (budget: under 500 and 1.5M). Most of
 that comes from merging level geometry per material in 60 m chunks,
 instancing props, drawing only the current section and its neighbours,
 a fixed pool of point lights that move to the nearest light anchors (so
@@ -212,12 +300,13 @@ src/
   enemies/                crew AI, models, bolts, the Crocodile boss
   combat/                 damage layers, combos, feedback, ka cells and grenades
   level/                  level builder, materials, kit, nav grid, cover, sections (zones.ts: the optional areas)
-  render/                 shader chunks, dome and sea life, the leviathan, light pool
+  render/                 shader chunks, dome and sea life, the leviathan, light pool, finishing pass
   fx/, audio/, ui/        effects, synthesized audio, HUD/menus/dialogue
   dialogue/               dialogue types and validator
-  game/                   game state machine and level director
+  game/                   game state machine, level director (encounters, checkpoints, saves),
+                          cutscene player and shot lists, run stats and rank
 tests/                    Vitest unit tests
 scripts/                  Playwright screenshot and playthrough scripts
-docs/                     protagonist reference, screenshots
+docs/                     design review, protagonist reference, screenshots
 PLAN.md                   milestones and progress log
 ```

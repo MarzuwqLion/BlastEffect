@@ -212,6 +212,7 @@ export class Weapons {
     const rig = this.game.rig;
     w.mag--;
     this.shotsFired++;
+    this.game.stats.totals.shots++;
     this.cooldown = c.fireInterval;
     this.sinceShot = 0;
     this.player.markWeaponOut();
@@ -255,6 +256,7 @@ export class Weapons {
         this.game.combat.weaponHit(tag.owner as Enemy, c, tag.zone ?? 'body', hitData.point, this.dir, hitData.normal);
       } else if (tag && tag.kind === 'prop' && tag.owner) {
         (tag.owner as Shootable).shot(zoneDamage(c, 'body'), hitData.point);
+        this.game.stats.totals.hits++;
         this.game.fx.impact(hitData.point, hitData.normal, 'metal', c.id === 'rifle' ? 1.6 : 1);
         this.game.audio.play('hitArmor', { at: hitData.point, volume: 0.5 });
         this.game.hud.hitMarker('armor', false, false);
@@ -273,6 +275,7 @@ export class Weapons {
     this.game.avatar.trigger({ type: 'fire', weapon: c.id });
     this.game.input.rumble(c.id === 'rifle' ? 0.5 : 0.12, c.id === 'rifle' ? 0.12 : 0.04);
     this.game.events.emit('weaponFired');
+    this.game.director.noise(this.game.player.position);
     if (w.mag === 0 && w.reserve > 0) {
       // Auto-reload shortly after running dry.
       this.cooldown = Math.max(this.cooldown, 0.15);

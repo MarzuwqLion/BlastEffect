@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import { CONFIG, type QualityLevel } from '../config';
+import { CONFIG, type DifficultyConfig, type QualityLevel } from '../config';
 import { MASK, Physics, makeRayHit } from '../core/Physics';
-import { UI } from '../strings';
+import { END_TEXT, MARI_LOGS, SECTION_NAMES, UI } from '../strings';
 import { Renderer } from '../core/Renderer';
 import { GameTime } from '../core/time';
 import { EventBus } from '../core/events';
-import { settings } from '../core/settings';
+import { settings, type Difficulty } from '../core/settings';
 import { Input } from '../input/Input';
 import { CameraRig } from '../player/CameraRig';
 import { Player } from '../player/Player';
@@ -33,8 +33,24 @@ import type { Avatar } from '../character/types';
 import { createAvatar } from '../character/createAvatar';
 import type { Npc } from '../character/Npc';
 import type { Flag, SpeakerId } from '../dialogue/types';
+import { RunStats, formatTime, loadBest, saveBest, scoreRun } from './RunStats';
+import { Cinematic } from './Cinematic';
+import { endingShots, openingShots } from './cutscenes';
+import { ARENA_CENTER, ARENA_Y } from '../level/sections/basin';
 
-export type GameState = 'loading' | 'title' | 'playing' | 'dialogue' | 'paused' | 'dead' | 'end';
+/** Things in the level that cutscenes move. */
+export interface SetPieces {
+  train?: THREE.Object3D;
+  basin?: {
+    begin(): void;
+    /** 1: the Crocodile's eye burns over the lake; 0: out. */
+    setEye(k: number): void;
+    /** 0..1: how far the lake has come back. */
+    setFlood(k: number): void;
+  };
+}
+
+export type GameState = 'loading' | 'title' | 'cinematic' | 'playing' | 'dialogue' | 'paused' | 'dead' | 'end';
 
 export interface GameParams {
   section: number;
@@ -47,6 +63,10 @@ export interface GameParams {
   automation: boolean;
   /** Dialogue flags set at start (debug: test payoffs without replaying). */
   flags: string[];
+  /** Play the opening even with autostart (tests). */
+  intro: boolean;
+  /** Keep a saved game in the browser (off for debug starts and tests). */
+  persist: boolean;
 }
 
 export function readParams(): GameParams {
@@ -61,6 +81,8 @@ export function readParams(): GameParams {
     autostart: q.get('autostart') === '1',
     automation: q.get('automation') === '1' || navigator.webdriver === true,
     flags: (q.get('flags') ?? '').split(',').map((f) => f.trim()).filter(Boolean),
+    intro: q.get('intro') === '1',
+    persist: q.get('save') === '1' || (q.get('autostart') !== '1' && !q.has('section') && !q.has('flags')),
   };
 }
 
@@ -80,6 +102,10 @@ export class Game {
   readonly scratchHit = makeRayHit();
   readonly cover = new CoverSystem();
   readonly audio = new AudioEngine();
+  /** Counters for the results screen and per-fight cards. */
+  readonly stats = new RunStats();
+  readonly setPieces: SetPieces = {};
+  cinematic!: Cinematic;
   physics!: Physics;
   renderer!: Renderer;
   rig!: CameraRig;
@@ -110,6 +136,13 @@ export class Game {
   private last = 0;
   private dialogueNpc: Npc | null = null;
   private titleT = 0;
+  private endT = 0;
+  private deathFade = 0;
+  private shotSpeaker: SpeakerId | null = null;
+  /** Head of whoever is speaking: the key light sits on them. */
+  private readonly dialogueFocus = new THREE.Vector3();
+  /** Base haze density for the current quality (sections scale it). */
+  private fogDensity = 0.017;
   debugEnabled = false;
   /** Frame counter, for tests. */
   frame = 0;
@@ -120,6 +153,11 @@ export class Game {
   constructor(private readonly container: HTMLElement, private readonly ui: HTMLElement) {
     this.params = readParams();
     this.debugEnabled = this.params.debug;
+  }
+
+  /** Numbers for the difficulty chosen in the settings. */
+  get difficulty(): DifficultyConfig {
+    return CONFIG.difficulty[settings.value.difficulty];
   }
 
   /** Load everything; `progress` reports 0..1. */
@@ -139,7 +177,8 @@ export class Game {
 
     // Scene look: dark teal water haze, cool dome light, warm neon below.
     this.scene.background = new THREE.Color(0x02070c);
-    this.scene.fog = new THREE.FogExp2(0x051820, q.fogDensity);
+    this.scene.fog = new THREE.FogExp2(CONFIG.look.fogColor, q.fogDensity);
+    this.fogDensity = q.fogDensity;
     this.hemi = new THREE.HemisphereLight(0x3a8aa0, 0x1a1210, 0.8);
     this.scene.add(this.hemi);
     this.scene.add(new THREE.AmbientLight(0x1a2a3a, 0.25));
@@ -188,6 +227,7 @@ export class Game {
 
     this.hud = new HUD(this, this.ui);
     this.dialogue = new DialogueUI(this, this.ui);
+    this.cinematic = new Cinematic(this, this.ui);
     this.menus = new Menus(this, this.ui);
     this.debug = new DebugOverlay(this, this.ui);
     if (this.params.debug) this.debug.toggle(true);
@@ -197,13 +237,19 @@ export class Game {
     this.boss = new Boss(this);
     progress(0.75, 'crew');
     await tick();
-    this.enemies.warm({ grunt: 7, trooper: 3, heavy: 2 });
+    this.enemies.warm({ grunt: 9, trooper: 3, heavy: 2, jackal: 2, ibis: 1 });
     progress(0.85, 'shaders');
     await tick();
 
+    const applySettings = (): void => {
+      this.director.applyThreat();
+      this.rig.shakeScale = settings.value.shake;
+    };
+    applySettings();
     settings.onChange((s) => {
       document.documentElement.dataset.text = s.textSize;
       if (s.quality !== this.renderer.quality) this.applyQuality(s.quality);
+      applySettings();
     });
     window.addEventListener('resize', () => this.fx.setPixelRatio(this.renderer.renderer.getPixelRatio(), window.innerHeight));
     this.input.onPointerLockChange((locked) => {
@@ -271,7 +317,7 @@ export class Game {
     this.sun.shadow.mapSize.set(q.shadowMapSize, q.shadowMapSize);
     this.sun.shadow.map?.dispose();
     this.sun.shadow.map = null as unknown as THREE.WebGLRenderTarget;
-    (this.scene.fog as THREE.FogExp2).density = q.fogDensity;
+    this.fogDensity = q.fogDensity;
     globalUniforms.uCaustics.value = q.caustics ? 1 : 0;
     this.lights.setCount(q.maxPointLights);
     this.fx.add.scale = q.particleScale;
@@ -303,20 +349,59 @@ export class Game {
     this.state = 'title';
     this.hud.setVisible(false);
     this.audio.setMusic('title');
-    this.menus.showTitle(() => this.startGame());
+    const save = this.params.persist ? this.director.peekSave() : null;
+    const diffName: Record<Difficulty, string> = { story: UI.diffStory, standard: UI.diffStandard, veteran: UI.diffVeteran };
+    this.menus.showTitle({
+      continueLabel: save
+        ? UI.continueFrom.replace('{place}', SECTION_NAMES[save.section]).replace('{time}', formatTime(save.time)).replace('{difficulty}', diffName[save.difficulty])
+        : null,
+      onContinue: () => {
+        if (this.director.loadSave()) this.startGame();
+        else this.startGame({ intro: true });
+      },
+      onNew: (difficulty) => {
+        settings.set('difficulty', difficulty);
+        this.director.clearSave();
+        this.startGame({ intro: true });
+      },
+    });
   }
 
-  startGame(): void {
+  /** Into the game: through the opening for a new run, straight in otherwise. */
+  startGame(opts: { intro?: boolean } = {}): void {
     void this.audio.unlock();
     this.menus.hide();
+    if ((opts.intro || this.params.intro) && this.director.current === 1) {
+      this.state = 'cinematic';
+      this.hud.setVisible(false);
+      // Take the mouse now, while the click that started the game still counts as a gesture.
+      this.input.requestPointerLock();
+      this.director.setMusic(this.director.section(1).def.music);
+      this.cinematic.play(openingShots(this), () => this.beginPlay());
+      return;
+    }
+    this.beginPlay();
+  }
+
+  private beginPlay(): void {
     this.hud.setVisible(true);
     this.state = 'playing';
     // Cut straight to the gameplay camera behind her.
     this.rig.endDialogue();
+    this.rig.endCine();
     this.rig.snap(this.player.position, this.player.yaw);
     this.input.requestPointerLock();
-    this.director.setMusic(this.director.section(this.director.current).def.music);
+    this.director.setMusic(this.director.ambientMusic());
     this.director.onGameStart();
+  }
+
+  /** The Crocodile is dealt with: watch the Basin fill, then the epilogue and the results. */
+  playEnding(): void {
+    this.state = 'cinematic';
+    this.hud.setVisible(false);
+    this.hud.clearPrompts();
+    this.input.exitPointerLock();
+    this.cinematic.play(endingShots(this), () => this.showEnd());
   }
 
   pause(): void {
@@ -346,27 +431,55 @@ export class Game {
   showDeath(): void {
     this.state = 'dead';
     this.input.exitPointerLock();
+    this.director.deathsHere++;
+    const retry = (): void => {
+      this.menus.hide();
+      this.director.respawnFromCheckpoint();
+      this.state = 'playing';
+      this.input.requestPointerLock();
+    };
+    // Stuck on the same stretch: offer the next setting down (it can be changed back in Settings).
+    const d = settings.value.difficulty;
+    const lower: Difficulty | null = this.director.deathsHere >= 3 ? (d === 'veteran' ? 'standard' : d === 'standard' ? 'story' : null) : null;
     this.menus.showDeath(
-      () => {
-        this.menus.hide();
-        this.director.respawnFromCheckpoint();
-        this.state = 'playing';
-        this.input.requestPointerLock();
-      },
+      retry,
       () => location.reload(),
+      lower
+        ? {
+            label: UI.retryEasier.replace('{difficulty}', lower === 'story' ? UI.diffStory : UI.diffStandard),
+            action: () => {
+              settings.set('difficulty', lower);
+              retry();
+            },
+          }
+        : null,
     );
   }
 
   showEnd(): void {
     this.state = 'end';
+    this.endT = 0;
     this.hud.setVisible(false);
     this.input.exitPointerLock();
     this.audio.setMusic('victory');
-    this.menus.showEnd(() => {
+    this.setPieces.basin?.setEye(0);
+    this.setPieces.basin?.setFlood(1);
+    const d = this.director;
+    const flags = d.flags as Set<string>;
+    const paras = END_TEXT.filter((p) => (!p.flag || flags.has(p.flag)) && (!p.not || !flags.has(p.not))).map((p) => p.text);
+    const difficulty = settings.value.difficulty;
+    const zonesTotal = d.sections.reduce((n, s) => n + (s.def.zones?.length ?? 0), 0);
+    const found = { logs: d.logsFound.size, logsTotal: MARI_LOGS.length, zones: d.discovered.size, zonesTotal };
+    const totals = this.stats.totals;
+    const result = scoreRun(totals, found, difficulty);
+    const before = loadBest()[difficulty];
+    const improved = this.params.persist ? saveBest(difficulty, totals.time, result) : { bestTime: false, bestScore: false };
+    const again = (): void => {
       const u = new URL(location.href);
       u.searchParams.delete('section');
       location.href = u.toString();
-    });
+    };
+    this.menus.showEpilogue(paras, () => this.menus.showResults({ totals, result, found, difficulty, best: before ?? null, improved }, again));
   }
 
   startDialogue(id: string, npc: Npc | null): void {
@@ -419,10 +532,10 @@ export class Game {
     const len = dir.length();
     dir.normalize();
     const side = new THREE.Vector3(-dir.z, 0, dir.x).normalize();
-    const dist = speaker === 'croc' ? 4.6 : Math.min(1.45, Math.max(0.9, len * 0.65));
+    const dist = speaker === 'croc' ? 5.4 : Math.min(1.45, Math.max(0.9, len * 0.65));
     const croc = speaker === 'croc';
     // The Crocodile is shot from below, a little off axis: he is big.
-    const pos = a.clone().addScaledVector(dir, dist).addScaledVector(side, (croc ? 0.9 : 0.42) * (speakerIsImani ? -1 : 1)).add(new THREE.Vector3(0, croc ? -1.0 : 0.04, 0));
+    const pos = a.clone().addScaledVector(dir, dist).addScaledVector(side, (croc ? 1.1 : 0.42) * (speakerIsImani ? -1 : 1)).add(new THREE.Vector3(0, croc ? -1.3 : 0.04, 0));
     const look = a.clone().add(new THREE.Vector3(0, croc ? -0.35 : -0.04, 0));
     // Keep the shot out of walls: pull it in toward the speaker if something is in the way.
     const toCam = _v3.copy(pos).sub(a);
@@ -430,7 +543,11 @@ export class Game {
     toCam.divideScalar(camDist);
     const free = this.physics.sphereCast(a, toCam, 0.18, camDist, MASK.world);
     if (free < camDist) pos.copy(a).addScaledVector(toCam, Math.max(0.35, free - 0.1));
-    this.rig.frame(pos, look, this.rig.mode !== 'dialogue');
+    // Shot/reverse-shot: cut when the speaker changes, hold when they carry on.
+    const cut = this.rig.mode !== 'dialogue' || speaker !== this.shotSpeaker;
+    this.shotSpeaker = speaker;
+    if (cut) this.rig.frame(pos, look, true);
+    this.dialogueFocus.copy(a);
     this.avatar.setTalking(speakerIsImani);
     this.dialogueNpc?.setTalking(!speakerIsImani);
     this.boss.setTalking(!speakerIsImani);
@@ -439,9 +556,10 @@ export class Game {
   /** Continuous sounds that follow the player's state. */
   private updateLoops(): void {
     const p = this.player;
-    this.audio.setLoop('hoverJets', p.alive && p.hovering ? 1 : 0);
+    const live = this.state === 'playing' && p.alive;
+    this.audio.setLoop('hoverJets', live && p.hovering ? 1 : 0);
     const low = CONFIG.player.healthMax * CONFIG.feel.lowHealthFraction;
-    this.audio.setLoop('heartbeat', p.alive && p.health < low ? 0.55 + 0.45 * (1 - p.health / low) : 0);
+    this.audio.setLoop('heartbeat', live && p.health < low ? 0.55 + 0.45 * (1 - p.health / low) : 0);
   }
 
   // ---- Frame loop ----
@@ -484,6 +602,7 @@ export class Game {
           break;
         }
         dt = this.time.tick(realDt);
+        this.stats.totals.time += realDt;
         this.director.preUpdate();
         this.player.update(dt);
         this.enemies.update(dt);
@@ -492,7 +611,6 @@ export class Game {
         this.explosives.update(dt);
         this.physics.step(dt);
         this.director.update(dt);
-        this.updateLoops();
         break;
       }
       case 'dialogue':
@@ -506,12 +624,27 @@ export class Game {
         this.boss.update(dt);
         this.physics.step(dt);
         break;
+      case 'cinematic':
+        // The world keeps living under a cutscene; nobody fights.
+        dt = this.time.tick(realDt);
+        this.cinematic.update(realDt);
+        this.director.animateWorld(dt);
+        this.physics.step(dt);
+        break;
       case 'paused':
       case 'dead':
-      case 'end':
         this.menus.update();
         break;
+      case 'end':
+        this.menus.update();
+        dt = this.time.tick(realDt);
+        this.director.animateWorld(dt);
+        this.endCamera(realDt);
+        break;
     }
+
+    // Hover jets and the low-health heartbeat stop with play (conversations, cutscenes, the end).
+    if (this.state !== 'paused') this.updateLoops();
 
     // Visuals.
     const p = this.player;
@@ -535,23 +668,45 @@ export class Game {
     this.dome.setIndoors(this.director.current === 3 && this.player.position.z < -152);
     this.dome.update(realDt, this.rig.camera.position);
     if (this.state !== 'paused') this.leviathan.update(realDt, this.director.zoneId === 'glass');
-    // Ambient follows the section (indoors vs out).
-    const amb = this.director.section(this.director.current).def.ambient;
+    // Ambient and haze follow the section (indoors vs out).
+    const sdef = this.director.section(this.director.current).def;
+    const amb = sdef.ambient;
+    const k = Math.min(1, realDt * 1.5);
     if (amb) {
-      const k = Math.min(1, realDt * 1.5);
       _c1.setHex(amb[0]);
       _c2.setHex(amb[1]);
       this.hemi.color.lerp(_c1, k);
       this.hemi.groundColor.lerp(_c2, k);
       this.hemi.intensity += (amb[2] - this.hemi.intensity) * k;
     }
-    // Fill light: between the camera and her chest, a little above.
-    this.avatar.chestWorld(_v3);
-    this.charLight.position.copy(this.rig.camera.position).lerp(_v3, 0.45);
-    this.charLight.position.y += 0.9;
+    const fog = this.scene.fog as THREE.FogExp2;
+    fog.color.lerp(_c1.setHex(sdef.fog?.[0] ?? CONFIG.look.fogColor), k);
+    fog.density += (this.fogDensity * (sdef.fog?.[1] ?? 1) - fog.density) * k;
+    // Fill light: between the camera and her chest, a little above. In a
+    // conversation it becomes the key light on whoever is speaking.
+    const closeUp = this.state === 'cinematic' && this.avatar.headWorld(_v3).distanceTo(this.rig.camera.position) < 4.5;
+    if (closeUp) this.dialogueFocus.copy(_v3);
+    if ((this.state === 'dialogue' && this.rig.mode === 'dialogue') || closeUp) {
+      const cam = this.rig.camera.position;
+      this.charLight.position.copy(cam).lerp(this.dialogueFocus, 0.4);
+      // Off to the camera's left and above: a three-quarter key.
+      _v3.copy(this.dialogueFocus).sub(cam).setY(0).normalize();
+      this.charLight.position.x += -_v3.z * -0.7;
+      this.charLight.position.z += _v3.x * -0.7;
+      this.charLight.position.y += 0.55;
+      this.charLight.intensity += (3.6 - this.charLight.intensity) * Math.min(1, realDt * 6);
+    } else {
+      this.avatar.chestWorld(_v3);
+      this.charLight.position.copy(this.rig.camera.position).lerp(_v3, 0.45);
+      this.charLight.position.y += 0.9;
+      this.charLight.intensity += (2.2 - this.charLight.intensity) * Math.min(1, realDt * 6);
+    }
     // Shadow camera follows the player.
     this.sun.position.set(p.position.x + 18, p.position.y + 50, p.position.z + 12);
     this.sun.target.position.copy(p.position);
+    // Finishing pass: fringing swells with impacts, the picture drains when she is down.
+    this.deathFade += ((p.alive ? 0 : 1) - this.deathFade) * Math.min(1, realDt * (p.alive ? 6 : 1.2));
+    this.renderer.setPostFrame(globalUniforms.uTime.value, this.rig.shakeLevel, this.deathFade);
     this.audio.setListener(this.rig.camera.position, this.rig.right);
     if (this.state === 'playing' || this.state === 'dialogue') this.hud.update(realDt);
     if (!this.skipRender) this.renderer.render();
@@ -605,6 +760,16 @@ export class Game {
       this.step(dt);
     }
     this.skipRender = keep;
+  }
+
+  /** Behind the end screens: a slow turn around the lake, now full. */
+  private endCamera(dt: number): void {
+    this.endT += dt;
+    const a = this.endT * 0.045 + 0.9;
+    const c = ARENA_CENTER;
+    _v.set(c.x + Math.sin(a) * 17, ARENA_Y + 6.5 + Math.sin(this.endT * 0.11) * 0.8, c.z + Math.cos(a) * 17);
+    _v2.set(c.x, ARENA_Y + 1.2, c.z);
+    this.rig.cine(_v, _v2, 44);
   }
 
   private titleCamera(dt: number): void {

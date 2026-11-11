@@ -407,6 +407,6 @@ export function buildShrine(b: LevelBuilder, game: Game, y: number): void {
   b.box(-31, fy + 1.4, -264.65, 1.1, 0.8, 0.05, { mat: m.windowWarm, collide: false, shadow: false });
   b.box(-31, fy + 1.35, -264.7, 1.25, 0.95, 0.04, { mat: m.gold, collide: false });
   b.light(-30, fy + 1.6, -262.5, 0xffb070, 1.2, 6);
-  b.holoLog('room', -28.4, fy + 0.85, -263.7);
+  b.holoLog('room', -28.4, fy + 0.85, -263.7, { mini: true });
   neonSign(b, SIGNS.shrine, -24.6, y + 3.4, -253, Math.PI / 2, 3.2, 0.8, '#ffc04a', { glyphs: true });
 }

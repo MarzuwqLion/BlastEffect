@@ -4,10 +4,11 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { CONFIG, type QualityConfig, type QualityLevel } from '../config';
+import { FinishPass } from '../render/FinishPass';
 
 /**
- * WebGL renderer plus the post chain (bloom + output). Quality presets
- * change pixel ratio, shadows, bloom and MSAA at runtime.
+ * WebGL renderer plus the post chain (bloom, output, finishing pass).
+ * Quality presets change pixel ratio, shadows, bloom and MSAA at runtime.
  */
 export class Renderer {
   readonly renderer: THREE.WebGLRenderer;
@@ -16,6 +17,10 @@ export class Renderer {
   private composer: EffectComposer | null = null;
   private renderPass: RenderPass | null = null;
   private bloom: UnrealBloomPass | null = null;
+  private finish: FinishPass | null = null;
+  private postTime = 0;
+  private postImpact = 0;
+  private postDesat = 0;
   private width = 1;
   private height = 1;
   private qualityListeners: ((q: QualityConfig, level: QualityLevel) => void)[] = [];
@@ -43,7 +48,7 @@ export class Renderer {
     });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.95;
+    this.renderer.toneMappingExposure = CONFIG.look.exposure;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.info.autoReset = false;
     this.renderer.domElement.id = 'game-canvas';
@@ -96,6 +101,7 @@ export class Renderer {
     this.composer?.dispose();
     this.composer = null;
     this.bloom = null;
+    this.finish = null;
     // Fallback ladder for GPUs that reject a target: 1 = no MSAA, 2 = also
     // 8-bit colour, 3 = no post-processing at all.
     if (q.bloom && this.postFallback < 3) {
@@ -114,7 +120,18 @@ export class Renderer {
       this.bloom = new UnrealBloomPass(new THREE.Vector2(this.width, this.height), q.bloomStrength, 0.32, 1.0);
       this.composer.addPass(this.bloom);
       this.composer.addPass(new OutputPass());
+      // Anti-aliasing (when there is no MSAA), vignette, grain.
+      this.finish = new FinishPass();
+      this.finish.fxaa = msaa === 0;
+      this.composer.addPass(this.finish);
     }
+  }
+
+  /** Per-frame inputs for the finishing pass: seconds, camera trauma 0..1, grey-out 0..1. */
+  setPostFrame(time: number, impact: number, desat: number): void {
+    this.postTime = time;
+    this.postImpact = impact;
+    this.postDesat = desat;
   }
 
   setBloomBoost(extra: number): void {
@@ -132,11 +149,14 @@ export class Renderer {
     if (this.composer) {
       this.composer.setPixelRatio(this.renderer.getPixelRatio());
       this.composer.setSize(this.width, this.height);
+      const pr = this.renderer.getPixelRatio();
+      this.finish?.setResolution(this.width * pr, this.height * pr);
     }
   }
 
   render(): void {
     this.renderer.info.reset();
+    this.finish?.setFrame(this.postTime, this.postImpact, this.postDesat);
     if (this.composer) this.composer.render();
     else this.renderer.render(this.scene, this.camera);
     if (this.verifyPost && this.composer) this.checkPostTargets();

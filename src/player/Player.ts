@@ -674,8 +674,10 @@ export class Player {
   takeDamage(amount: number, from: THREE.Vector3 | null): void {
     if (!this.alive || amount <= 0) return;
     if (this.god) amount = 0;
+    amount *= this.game.difficulty.damageTaken * this.game.director.damageScale;
     if (this.charging) amount *= 0.25;
     if (this.dashGraceT > 0) amount *= P.dashGraceDamageScale;
+    this.game.stats.totals.damageTaken += amount;
     this.shieldDelay = P.shieldRegenDelay;
     this.lastHitAgo = 0;
     const hadShield = this.shield > 0;
@@ -708,10 +710,18 @@ export class Player {
     this.shield = Math.min(this.shieldMax, this.shield + this.shieldMax * fraction);
   }
 
+  /** A reward for playing well: barrier points now, and regeneration starts at once. */
+  rewardShield(points: number): void {
+    if (!this.alive) return;
+    this.shield = Math.min(this.shieldMax, this.shield + points);
+    this.shieldDelay = Math.min(this.shieldDelay, 0.4);
+  }
+
   die(): void {
     if (!this.alive) return;
     this.alive = false;
     this.health = 0;
+    this.game.stats.totals.deaths++;
     this.exitCover();
     this.charging = false;
     this.aiming = false;

@@ -193,7 +193,7 @@ export function buildPerson(look: Look): { mesh: THREE.SkinnedMesh; bones: Recor
   pal[SL.accent] = { color: look.accent, roughness: 0.3, metalness: 0.9 };
   pal[SL.screen] = { color: 0x40c8ff, roughness: 0.2, metalness: 0, emissive: 1.5 };
   pal[SL.beard] = { color: look.beard ?? look.hair, roughness: 0.9, metalness: 0 };
-  const material = paletteMaterial(pal);
+  const material = paletteMaterial(pal, { rim: 0xffdcb0, rimStrength: 0.2, fill: 0.12 });
   const built = rig.build(material);
   cullAsPerson(built.mesh, look.height);
   const bones: Record<string, THREE.Bone> = {};

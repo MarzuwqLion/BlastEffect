@@ -1,6 +1,7 @@
 // Headless screenshots and scripted checks. Usage:
 //   node scripts/shots.mjs [scenario ...]
-// Scenarios: sections, combat, closeup, flow (default: sections).
+// Scenarios: sections, boot, playthrough (PAD=1 for the gamepad), save, crew, boss, and the older
+// per-milestone checks (tour, dialogue, title, anims, closeup, fight, combat, gamepad, movement, camera, cover).
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -11,7 +12,8 @@ fs.mkdirSync(OUT, { recursive: true });
 const scenarios = process.argv.slice(2);
 if (!scenarios.length) scenarios.push('sections');
 
-const exe = fs.existsSync('/opt/pw-browsers/chromium-1194/chrome-linux/chrome') ? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' : undefined;
+// The sandbox image ships Chromium at a fixed path; elsewhere Playwright finds its own.
+const exe = ['/opt/pw-browsers/chromium', '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'].find((p) => fs.existsSync(p));
 const server = await serve(path.resolve('dist'));
 const browser = await chromium.launch({
   executablePath: exe,
@@ -88,6 +90,9 @@ const BOT = (usePad) => {
       for (let i = 0; i < 17; i++) { if (down[i]) P.press(i, 1); else P.release(i); }
     } else {
       g.input.injectMove(mx, my);
+      // Let go of anything held last frame and not this one.
+      for (const a in bot.prevHeld) if (!bot.held[a]) g.input.inject(a, false);
+      bot.prevHeld = bot.held;
       for (const a in bot.held) g.input.inject(a, !!bot.held[a]);
       for (const a in bot.tapNext) if (bot.tapNext[a] && !prevTaps[a]) g.input.inject(a, true);
     }
@@ -103,7 +108,14 @@ const BOT = (usePad) => {
     g.rig.yaw = Math.atan2(-(x - p.position.x), -(z - p.position.z));
     g.rig.pitch = 0;
   };
-  const enemies = () => g.enemies.active.filter((e) => e.alive && e.state !== 'spawning' && e.position.distanceTo(p.position) < 48);
+  // Fights whoever has noticed her; a crew still at its posts only once it is close and in view.
+  const enemies = () => g.enemies.active.filter((e) => {
+    if (!e.alive || e.state === 'spawning') return false;
+    const dist = e.position.distanceTo(p.position);
+    if (dist > 48) return false;
+    if (e.alerted) return true;
+    return dist < 30 && e.section === d.current && !g.physics.blocked(g.rig.aimOrigin, e.chestPoint(tmp2));
+  });
   const pickTarget = () => {
     let best = null; let bestScore = 1e9;
     for (const e of enemies()) {
@@ -240,7 +252,8 @@ const BOT = (usePad) => {
       }
       bot.lastPos.copy(p.position);
     } else if (st === 'dead') {
-      tap('uiConfirm');
+      // Retry. Spaced taps: the screen ignores input for a moment, and a tap needs a fresh press.
+      if (g.frame % 30 === 0) tap('uiConfirm');
     }
     apply(mx, my);
     g.step(dt);
@@ -481,12 +494,12 @@ const run = {
 
   async fight() {
     const page = await open('section=2&autostart=1&manual=1&debug=1&god=1');
-    // Walk into encounter A and watch the AI for a while.
+    // Walk up to the crew posted on the strip until they notice, and watch the AI for a while.
     const log = await page.evaluate(() => {
       const g = window.__game;
       const p = g.player;
       g.skipRender = true;
-      p.teleport({ x: 0.5, y: 0, z: -54 });
+      p.teleport({ x: 0.5, y: 0, z: -72 });
       g.rig.yaw = 0;
       const out = [];
       let hits = 0;
@@ -500,10 +513,12 @@ const run = {
         }
       }
       out.push(`frames with damage taken: ${hits}`);
+      out.push(`fight started: ${g.director.encounters.find((e) => e.def.id === 'stripA').state === 'active'}`);
       g.skipRender = false;
       return out;
     });
     console.log(log.join('\n'));
+    if (!log.includes('fight started: true')) errors.push('[fight] the posted crew never noticed her');
     await page.evaluate(() => window.__game.simulate(0.1));
     await shot(page, 'm2-fight-overview');
     // Shoot the nearest enemy until a hit marker shows.
@@ -1082,26 +1097,40 @@ const run = {
     const pad = !!process.env.PAD;
     const tag = pad ? 'pad' : 'kbm';
     const page = await open(`manual=1&god=1&debug=1`, undefined, pad ? FAKE_PAD : undefined);
-    // Title: press any key, then Start.
+    // Title: press any key, New game, Standard.
     await page.evaluate(() => window.__game.simulate(0.5));
-    if (pad) {
-      for (let i = 0; i < 2; i++) {
-        await page.evaluate(() => { window.__pad.press(0); window.__game.simulate(0.1); window.__pad.release(0); window.__game.simulate(0.6); });
-        await page.waitForTimeout(350);
-      }
-    } else {
-      for (let i = 0; i < 2; i++) {
+    const confirm = async () => {
+      if (pad) await page.evaluate(() => { window.__pad.press(0); window.__game.simulate(0.1); window.__pad.release(0); window.__game.simulate(0.6); });
+      else {
         await page.keyboard.down('Enter');
         await page.evaluate(() => window.__game.simulate(0.1));
         await page.keyboard.up('Enter');
         await page.evaluate(() => window.__game.simulate(0.6));
-        await page.waitForTimeout(350); // menus ignore input for 250 ms of real time after opening
       }
+      await page.waitForTimeout(350); // menus ignore input for 250 ms of real time after opening
+    };
+    for (let i = 0; i < 3; i++) await confirm();
+    const opening = await page.evaluate(() => ({ state: window.__game.state, mode: window.__game.rig.mode, bars: document.querySelector('.cine')?.classList.contains('show') }));
+    console.log(`[${tag}] after New game:`, JSON.stringify(opening));
+    if (opening.state !== 'cinematic' || !opening.bars) errors.push(`[${tag}] the opening did not start: ${JSON.stringify(opening)}`);
+    if (pad) {
+      // Hold A to skip.
+      await page.evaluate(() => { window.__pad.press(0); window.__game.simulate(1.6); window.__pad.release(0); window.__game.simulate(0.5); });
+    } else {
+      // Watch it through, with a frame from each shot.
+      for (const [t, name] of [[3.5, 'title'], [6, 'train'], [5, 'imani'], [6, 'platform']]) {
+        await page.evaluate((t) => window.__game.simulate(t), t);
+        await shot(page, `m10-opening-${name}`);
+      }
+      await page.evaluate(() => window.__game.simulate(5));
     }
     const startState = await page.evaluate(() => window.__game.state);
-    console.log(`[${tag}] after title:`, startState);
+    console.log(`[${tag}] after the opening:`, startState);
+    if (startState !== 'playing') errors.push(`[${tag}] not playing after the opening: ${startState}`);
     const camMode = await page.evaluate(() => window.__game.rig.mode);
-    if (camMode !== 'gameplay') errors.push(`[${tag}] camera still in ${camMode} mode after Start`);
+    if (camMode !== 'gameplay') errors.push(`[${tag}] camera still in ${camMode} mode after the opening`);
+    const trainZ = await page.evaluate(() => window.__game.setPieces.train.position.z);
+    if (Math.abs(trainZ + 16) > 0.01) errors.push(`[${tag}] the train is not at the platform after the opening: z=${trainZ}`);
     await page.evaluate(BOT, pad);
     const seen = new Set();
     let last = null;
@@ -1109,7 +1138,7 @@ const run = {
       const r = await page.evaluate(() => window.__bot.run(240));
       last = r;
       const key = `${r.section}-${r.state}`;
-      if (!seen.has(key) && (r.state === 'playing' || r.state === 'dialogue' || r.state === 'end')) {
+      if (!seen.has(key) && (r.state === 'playing' || r.state === 'dialogue' || r.state === 'cinematic' || r.state === 'end')) {
         seen.add(key);
         console.log(`[${tag}]`, JSON.stringify(r));
         await page.evaluate(() => { window.__game.skipRender = false; window.__game.step(1 / 60); });
@@ -1118,10 +1147,25 @@ const run = {
       if (r.state === 'end' || r.stuck) break;
     }
     console.log(`[${tag}] final`, JSON.stringify(last));
-    const end = await page.evaluate(() => ({ flags: [...window.__game.director.flags], device: window.__game.input.device, endText: document.querySelector('.menu-screen.show, .end')?.textContent?.slice(0, 400) ?? null }));
-    console.log(`[${tag}] end`, JSON.stringify(end));
-    await page.evaluate(() => { window.__game.skipRender = false; window.__game.step(1 / 60); });
+    if (last.state !== 'end') errors.push(`[${tag}] the run did not reach the end: ${JSON.stringify(last)}`);
+    // The end: epilogue pages, then the results.
+    const screenText = () => page.evaluate(() => { const m = document.querySelector('.screen.show .menu'); return m ? { title: m.querySelector('h2')?.textContent, text: m.textContent.slice(0, 260), fits: m.getBoundingClientRect().bottom <= window.innerHeight && m.getBoundingClientRect().top >= 0, rank: m.querySelector('.rank')?.textContent ?? null } : null; });
+    await page.evaluate(() => { window.__game.skipRender = false; window.__game.simulate(1); });
+    let screen = await screenText();
+    console.log(`[${tag}] epilogue`, JSON.stringify(screen));
     await shot(page, `m9-${tag}-end`);
+    if (!screen || !screen.fits) errors.push(`[${tag}] the epilogue is missing or off screen: ${JSON.stringify(screen)}`);
+    for (let i = 0; i < 6 && screen && !screen.rank; i++) {
+      await confirm();
+      screen = await screenText();
+    }
+    console.log(`[${tag}] results`, JSON.stringify(screen));
+    await page.evaluate(() => window.__game.simulate(0.3));
+    await shot(page, `m10-${tag}-results`);
+    if (!screen || !screen.rank || !screen.fits) errors.push(`[${tag}] the results screen is missing or off screen: ${JSON.stringify(screen)}`);
+    const end = await page.evaluate(() => { const g = window.__game; return { flags: [...g.director.flags], device: g.input.device, totals: g.stats.totals, logs: g.director.logsFound.size, saveLeft: !!localStorage.getItem('neo-atlantis.save.v1'), best: localStorage.getItem('neo-atlantis.best.v1') }; });
+    console.log(`[${tag}] end`, JSON.stringify(end));
+    if (end.saveLeft) errors.push(`[${tag}] a finished run left a saved game behind`);
     await page.close();
   },
 
@@ -1148,8 +1192,17 @@ const run = {
     await page.keyboard.press('Enter');
     await page.waitForFunction(() => document.querySelectorAll('.screen.show .menu .item').length > 0, null, { timeout: 30000 }).catch(() => {});
     await page.waitForTimeout(600);
+    // New game, then Standard on the difficulty screen.
     await page.keyboard.press('Enter');
-    await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 30000 }).catch(() => {});
+    await page.waitForFunction(() => window.__game.menus.name === 'difficulty', null, { timeout: 30000 }).catch(() => {});
+    await page.waitForTimeout(600);
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => window.__game.state === 'cinematic', null, { timeout: 30000 }).catch(() => {});
+    // The opening is playing: hold Enter to skip it, as a player would.
+    await page.waitForTimeout(800);
+    await page.keyboard.down('Enter');
+    await page.waitForFunction(() => window.__game.state === 'playing', null, { timeout: 60000 }).catch(() => {});
+    await page.keyboard.up('Enter');
     await page.waitForTimeout(1500);
     const start = await page.evaluate(() => ({ state: window.__game.state, z: window.__game.player.position.z }));
     await page.keyboard.down('KeyW');
@@ -1169,6 +1222,156 @@ const run = {
     console.log('boot', JSON.stringify({ start: start.state, ...r }));
     await shot(page, 'boot-walk');
     if (r.state !== 'playing' || r.mode !== 'gameplay' || r.camDist > 6 || !r.onScreen || r.moved < 2) errors.push(`[boot] camera/start check failed: ${JSON.stringify(r)}`);
+    await page.close();
+  },
+
+  // Save and Continue: a new game, play past the first fights, come back in a new tab.
+  async save() {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+    const load = async () => {
+      const page = await ctx.newPage();
+      page.on('console', (m) => { if (m.type() === 'error') errors.push(`[save] ${m.text()}`); });
+      page.on('pageerror', (e) => errors.push(`[save] ${e.message}`));
+      await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
+      await page.goto('http://localhost:4173/BlastEffect/?manual=1&quality=low');
+      await page.waitForFunction(() => window.__game && window.__game.state !== 'loading', null, { timeout: 120000 });
+      await page.keyboard.press('Enter');
+      await page.evaluate(() => window.__game.simulate(0.3));
+      return page;
+    };
+    const tap = async (page) => {
+      await page.waitForTimeout(320);
+      await page.evaluate(() => { const g = window.__game; g.input.inject('uiConfirm', true); g.step(1 / 60); g.input.inject('uiConfirm', false); g.simulate(0.2); });
+    };
+    const items = (page) => page.evaluate(() => [...document.querySelectorAll('.screen.show .item')].map((b) => b.textContent.trim().slice(0, 60)));
+    let page = await load();
+    const first = await items(page);
+    console.log('save: first visit', JSON.stringify(first));
+    if (first.some((t) => t.startsWith('Continue'))) errors.push('[save] Continue offered before anything was played');
+    await shot(page, 'm10-title');
+    await tap(page); // New game
+    await shot(page, 'm10-difficulty');
+    await tap(page); // Standard
+    // Skip the opening.
+    await page.evaluate(() => { const g = window.__game; g.simulate(1); g.input.inject('uiConfirm', true); g.simulate(1.6); g.input.inject('uiConfirm', false); g.simulate(0.5); });
+    await page.evaluate(BOT, false);
+    await page.evaluate(() => { window.__game.player.god = true; });
+    // Talk to Odette (the gate opens), then die on the platform: the retry must not shut the gate on someone she won't talk to twice.
+    const dock = await page.evaluate(() => {
+      const g = window.__game; const d = g.director;
+      for (let i = 0; i < 40 && !(d.flags.has('promised_odette') && g.state === 'playing'); i++) window.__bot.run(60);
+      window.__bot.run(30);
+      const talked = d.npcDef('odette').hasTalked;
+      g.player.god = false;
+      g.player.takeDamage(9999, null);
+      g.skipRender = true;
+      for (let i = 0; i < 600 && g.state !== 'dead'; i++) g.step(1 / 60);
+      return { talked, state: g.state };
+    });
+    await page.waitForTimeout(320);
+    const retried = await page.evaluate(() => {
+      const g = window.__game; const d = g.director;
+      g.input.inject('uiConfirm', true); g.step(1 / 60); g.input.inject('uiConfirm', false);
+      for (let i = 0; i < 30; i++) g.step(1 / 60);
+      g.player.god = true;
+      return { state: g.state, gateOpen: d.allDoors.get('dockGate').open, objective: d.objective, flags: d.flags.size, odetteTalked: d.npcDef('odette').hasTalked };
+    });
+    console.log('save: died on the platform after talking', JSON.stringify(dock), '->', JSON.stringify(retried));
+    if (!dock.talked || dock.state !== 'dead' || retried.state !== 'playing' || !retried.gateOpen || retried.flags < 1) errors.push(`[save] dying after the first conversation left the gate shut: ${JSON.stringify(retried)}`);
+    let r = null;
+    for (let i = 0; i < 60; i++) {
+      r = await page.evaluate(() => { const b = window.__bot.run(300); const g = window.__game; return { t: b.t, state: b.state, section: b.section, cleared: g.director.encounters.filter((e) => e.state === 'cleared').map((e) => e.def.id) }; });
+      if (r.cleared.includes('stripB') || r.section > 2) break;
+    }
+    const saved = await page.evaluate(() => { window.__bot.run(240); const s = JSON.parse(localStorage.getItem('neo-atlantis.save.v1')); return s && { section: s.checkpoint.section, pos: s.checkpoint.pos.map((v) => +v.toFixed(1)), cleared: s.checkpoint.cleared, flags: s.checkpoint.flags.length, kills: s.stats.kills, objective: s.checkpoint.objective.text }; });
+    console.log('save: played', JSON.stringify(r), 'saved', JSON.stringify(saved));
+    if (!saved) errors.push('[save] nothing was saved');
+    await page.close();
+    page = await load();
+    const second = await items(page);
+    console.log('save: second visit', JSON.stringify(second));
+    await shot(page, 'm10-title-continue');
+    if (!second[0]?.startsWith('Continue')) errors.push(`[save] no Continue on the second visit: ${JSON.stringify(second)}`);
+    await tap(page); // Continue
+    const back = await page.evaluate(() => { const g = window.__game; g.simulate(0.5); const d = g.director; return { state: g.state, mode: g.rig.mode, section: d.current, pos: [g.player.position.x, g.player.position.y, g.player.position.z].map((v) => +v.toFixed(1)), cleared: d.encounters.filter((e) => e.state === 'cleared').map((e) => e.def.id), flags: d.flags.size, kills: g.stats.totals.kills, objective: d.objective }; });
+    console.log('save: continued', JSON.stringify(back));
+    if (saved && (back.state !== 'playing' || back.mode !== 'gameplay' || back.section !== saved.section || back.cleared.join() !== saved.cleared.join() || back.flags !== saved.flags || back.kills !== saved.kills || back.objective !== saved.objective || Math.hypot(back.pos[0] - saved.pos[0], back.pos[2] - saved.pos[2]) > 0.5)) {
+      errors.push(`[save] the continued game does not match the save: ${JSON.stringify(back)} vs ${JSON.stringify(saved)}`);
+    }
+    await page.evaluate(() => { window.__game.skipRender = false; window.__game.simulate(0.5); });
+    await shot(page, 'm10-continued');
+    await ctx.close();
+  },
+
+  // The crew at their posts, and the two new types: noticing, the ambush bonus, the Jackal's lunge, the Ibis's shot.
+  async crew() {
+    const page = await open('section=2&autostart=1&manual=1');
+    const out = await page.evaluate(() => {
+      const g = window.__game; const p = g.player; const d = g.director; const V = p.position.constructor;
+      const res = {};
+      g.skipRender = true;
+      const step = () => g.step(1 / 60);
+      const sim = (s) => { for (let i = 0; i < s * 60; i++) step(); };
+      const enc = d.encounters.find((e) => e.def.id === 'stripA');
+      res.posted = { state: enc.state, unaware: enc.enemies.filter((e) => e.unaware).length, club: d.encounters.find((e) => e.def.id === 'club').state };
+      // Walk down the street until someone notices.
+      let z = -56;
+      for (; z >= -84 && enc.state === 'staged'; z -= 2) { p.teleport({ x: 0, y: 0, z }); sim(2); }
+      res.noticedAt = { z, nearest: +Math.min(...enc.enemies.map((e) => e.position.distanceTo(p.position))).toFixed(1), music: d.musicCue };
+      sim(1.5);
+      res.allAlerted = enc.enemies.every((e) => e.alerted);
+      // A fresh crew: one rifle shot at an unaware grunt's chest.
+      d.respawnFromCheckpoint();
+      const enc2 = d.encounters.find((e) => e.def.id === 'stripA');
+      p.teleport({ x: 2, y: 0, z: -66 }); g.rig.yaw = 0; sim(0.5);
+      if (p.weapons.current !== 'rifle') { g.input.inject('swapWeapon', true); step(); g.input.inject('swapWeapon', false); sim(1.2); }
+      const tgt = enc2.enemies[2]; const tmp = new V(); const hp0 = tgt.defenses.health;
+      g.input.inject('aim', true);
+      for (let i = 0; i < 40; i++) { tgt.chestPoint(tmp); g.debugAimAt(tmp.x, tmp.y, tmp.z); step(); }
+      const wasUnaware = tgt.unaware;
+      g.input.inject('fire', true); step(); g.input.inject('fire', false); g.input.inject('aim', false);
+      sim(0.2);
+      res.ambush = { wasUnaware, dealt: hp0 - tgt.defenses.health, counted: g.stats.totals.ambushes, started: enc2.state };
+      sim(1.2);
+      res.ambush.othersAlerted = enc2.enemies.every((e) => e.alerted);
+      // One enemy at a time against a player who stands still, strafes, or dashes on the tell.
+      const trial = (kind, dist, act) => {
+        g.enemies.clear(); g.bolts.clear();
+        for (const e of d.encounters) e.state = 'cleared';
+        p.teleport({ x: 0, y: 0, z: -66 }); g.rig.yaw = 0; p.health = 100; p.shield = p.shieldMax;
+        sim(0.3);
+        const dmg0 = g.stats.totals.damageTaken;
+        const e = g.enemies.spawn(kind, new V(0, 0, -66 - dist), Math.PI, 2, { alerted: true, instant: true });
+        let attacks = 0; let was = false;
+        for (let t = 0; t < 9; t += 1 / 60) {
+          const on = e.state === 'slash' || e.state === 'fire';
+          if (on && !was) attacks++;
+          was = on;
+          act?.(e, t, attacks);
+          step();
+        }
+        g.input.injectMove(0, 0); g.input.inject('dash', false);
+        return { attacks, taken: Math.round(g.stats.totals.damageTaken - dmg0) };
+      };
+      res.jackalStill = trial('jackal', 14);
+      res.jackalDash = trial('jackal', 14, (e, _t, n) => {
+        if (e.state === 'slash' && e.stateT > 0.22 && e.stateT < 0.28) { g.input.injectMove(n % 2 ? 1 : -1, 0); g.input.inject('dash', true); }
+        else { g.input.inject('dash', false); if (e.state !== 'slash') g.input.injectMove(0, 0); }
+      });
+      res.ibisStill = trial('ibis', 30);
+      res.ibisStrafe = trial('ibis', 30, (_e, t) => g.input.injectMove(Math.sin(t * 1.2) > 0 ? 1 : -1, 0));
+      g.skipRender = false;
+      return res;
+    });
+    console.log('crew', JSON.stringify(out));
+    if (out.posted.state !== 'staged' || out.posted.unaware !== 3) errors.push(`[crew] the strip crew is not at its posts: ${JSON.stringify(out.posted)}`);
+    if (out.noticedAt.z > -60 || out.noticedAt.z < -84 || out.noticedAt.music !== 'combat') errors.push(`[crew] noticing is off: ${JSON.stringify(out.noticedAt)}`);
+    if (!out.allAlerted) errors.push('[crew] the rest of the crew did not react to the first alert');
+    if (!out.ambush.wasUnaware || out.ambush.dealt !== 140 || out.ambush.counted < 1 || !out.ambush.othersAlerted) errors.push(`[crew] ambush check failed: ${JSON.stringify(out.ambush)}`);
+    if (out.jackalStill.attacks < 2 || out.jackalStill.taken < 40) errors.push(`[crew] a Jackal should hurt someone standing still: ${JSON.stringify(out.jackalStill)}`);
+    if (out.jackalDash.taken >= out.jackalStill.taken) errors.push(`[crew] dashing on the tell should avoid Jackal damage: ${JSON.stringify(out.jackalDash)} vs ${JSON.stringify(out.jackalStill)}`);
+    if (out.ibisStill.taken < 30) errors.push(`[crew] an Ibis should hit someone standing still: ${JSON.stringify(out.ibisStill)}`);
+    if (out.ibisStrafe.taken >= out.ibisStill.taken) errors.push(`[crew] strafing should avoid Ibis shots: ${JSON.stringify(out.ibisStrafe)} vs ${JSON.stringify(out.ibisStill)}`);
     await page.close();
   },
 

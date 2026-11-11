@@ -176,7 +176,7 @@ export class Protagonist implements Avatar {
     const rig = new RigBuilder();
     addBones(rig);
     buildBody(rig);
-    this.material = paletteMaterial(PALETTE, { camoBlue: 0x1f4fd6, camoYellow: 0xf2c418, camoScale: 30 });
+    this.material = paletteMaterial(PALETTE, { camoBlue: 0x1f4fd6, camoYellow: 0xf2c418, camoScale: 30, rim: 0xbfe6ff, rimStrength: 0.16, fill: 0.05 });
     const built = rig.build(this.material);
     this.mesh = built.mesh;
     this.mesh.castShadow = true;

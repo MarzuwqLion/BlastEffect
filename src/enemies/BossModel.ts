@@ -20,10 +20,11 @@ const PALETTE: PaletteEntry[] = [
   { color: 0x1a1d1c, roughness: 0.7, metalness: 0.1 },
 ];
 
-const K = 1.6;
+/** Model scale: he stands 3.6 m. */
+const K = 2.0;
 
 /**
- * The Crocodile: a 2.9 m armoured figure in a crocodile helm with a gold
+ * The Crocodile: a 3.6 m armoured figure in a crocodile helm with a gold
  * usekh collar, linen kilt and a short armoured tail. Stolen ka-amps feed a
  * glowing reservoir between his shoulders (the weak point) through cables
  * running down his arms. Posed procedurally per action.
@@ -149,7 +150,7 @@ export class BossModel implements EnemyVisual {
     part('tail2', limb(0.08 * K, 0.02 * K, 0.4 * K, 10), P.SCALE, [0, 0, 0], [-1.3, 0, 0]);
     for (let i = 0; i < 4; i++) part('tail2', new THREE.ConeGeometry(0.025 * K, 0.06 * K, 4), P.PLATE, [0, 0.04 - i * 0.02, -0.06 - i * 0.08], [-0.6, 0, 0]);
 
-    this.material = paletteMaterial(PALETTE, { camoBlue: 0x23402a, camoYellow: 0x7a5f2c, camoScale: 16 });
+    this.material = paletteMaterial(PALETTE, { camoBlue: 0x23402a, camoYellow: 0x7a5f2c, camoScale: 16, rim: 0x62ffb8, rimStrength: 0.5, fill: 0.14 });
     const built = rig.build(this.material);
     built.mesh.castShadow = true;
     for (const b of built.skeleton.bones) this.B[b.name] = b;

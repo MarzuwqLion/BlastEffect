@@ -41,7 +41,7 @@ export const terrace: SectionDef = {
   nav: { minX: -45, maxX: 16, minZ: -283, maxZ: -200, minY: 3, maxY: 14 },
   music: 'heist',
   dome: 0.75,
-  ambient: [0x3a8aa0, 0x2a1c10, 0.9],
+  ambient: [0x3a8aa0, 0x2a1c10, 1.45],
   objective: OBJECTIVES.terrace,
   npcs: [{ id: 'merit', x: -40, y: T2 + 0.5, z: -253, yaw: -Math.PI / 2, dialogue: 'priestess' }],
   zones: [
@@ -64,13 +64,15 @@ export const terrace: SectionDef = {
     {
       id: 'terrace',
       trigger: [-16, T1 - 1, -205, 16, T1 + 4, -212],
+      // Holding the climb: a patrol on the first tier, two on the second, an Ibis watching from the top.
+      staged: true,
       waves: [
         {
           spawns: [
-            { kind: 'grunt', x: -6, y: T2, z: -236 },
-            { kind: 'grunt', x: 7, y: T2, z: -238, delay: 0.3 },
-            { kind: 'grunt', x: 0, y: T3, z: -266, delay: 0.5 },
-            { kind: 'trooper', x: 12, y: T1, z: -224, delay: 0.8 },
+            { kind: 'grunt', x: -6, y: T2, z: -236, yaw: Math.PI * 0.6 },
+            { kind: 'grunt', x: 7, y: T2, z: -238, yaw: -Math.PI * 0.7 },
+            { kind: 'ibis', x: 0, y: T3, z: -266, yaw: Math.PI },
+            { kind: 'trooper', x: 12, y: T1, z: -224, yaw: -Math.PI / 2 },
           ],
         },
         {
@@ -78,21 +80,24 @@ export const terrace: SectionDef = {
           delay: 1.5,
           spawns: [
             { kind: 'heavy', x: 0, y: T3, z: -274 },
-            { kind: 'grunt', x: -9, y: T3, z: -268, delay: 0.4 },
+            { kind: 'jackal', x: -9, y: T3, z: -268, delay: 0.4 },
             { kind: 'grunt', x: 9, y: T3, z: -268, delay: 0.8 },
           ],
           // Nef's tip: hit them during the shift change and one is still on his way.
           fewerWith: { flag: 'intel_shifts', drop: 1 },
         },
       ],
-      onStart: (d) => d.hint('rifleRange'),
+      onStart: (d) => d.hint('ibis', 'rifleRange'),
       onClear: (d) => {
         d.openDoor('basinGate');
         d.setObjective(OBJECTIVES.terraceGate, 'gate');
       },
     },
   ],
-  onEnter: (d) => d.setObjective(OBJECTIVES.terrace, 'top'),
+  onEnter: (d) => {
+    if (d.isCleared('terrace')) d.setObjective(OBJECTIVES.terraceGate, 'gate');
+    else d.setObjective(OBJECTIVES.terrace, 'top');
+  },
   build(b, game) {
     const m = game.mats;
     const p = game.props;

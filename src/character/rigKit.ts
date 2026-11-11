@@ -24,6 +24,11 @@ export interface PaletteMaterialOptions {
   camoBlue?: THREE.ColorRepresentation;
   camoYellow?: THREE.ColorRepresentation;
   camoScale?: number;
+  /** Edge light colour and strength: separates the character from dark backgrounds. */
+  rim?: THREE.ColorRepresentation;
+  rimStrength?: number;
+  /** Share of the base colour that shows even with no light on it (0..1). */
+  fill?: number;
 }
 
 const MAX_PALETTE = 16;
@@ -56,6 +61,8 @@ export function paletteMaterial(palette: PaletteEntry[], opts: PaletteMaterialOp
     uCamoYellow: { value: new THREE.Vector3(yellow.r, yellow.g, yellow.b) },
     uCamoScale: { value: opts.camoScale ?? 30 },
     uOpacity: { value: 1 },
+    uRim: { value: rimVec(opts.rim ?? 0xffffff, opts.rimStrength ?? 0) },
+    uFill: { value: opts.fill ?? 0 },
   };
   m.userData.uniforms = uniforms;
   m.onBeforeCompile = (shader) => {
@@ -94,6 +101,8 @@ uniform vec3 uCamoBlue;
 uniform vec3 uCamoYellow;
 uniform float uCamoScale;
 uniform float uOpacity;
+uniform vec4 uRim;
+uniform float uFill;
 varying float vMat;
 varying vec3 vBind;
 varying vec3 vPalViewN;
@@ -151,16 +160,33 @@ diffuseColor.a *= uOpacity;`,
         `#include <emissivemap_fragment>
 totalEmissiveRadiance += palColor * palProps.z;
 float rim = pow(1.0 - abs(dot(normalize(vPalViewN), vec3(0.0, 0.0, 1.0))), 2.0);
-totalEmissiveRadiance += uFlash.rgb * uFlash.a;
-totalEmissiveRadiance += uGlow.rgb * uGlow.a * (0.25 + rim * 1.6);
+// Hit flash: mostly on the silhouette, so the target keeps its shape under bloom.
+totalEmissiveRadiance += uFlash.rgb * uFlash.a * (0.2 + rim * 1.5);
+totalEmissiveRadiance += uGlow.rgb * uGlow.a * (0.1 + rim * 1.5);
+// Rim light and a fill floor: a character never sinks into a dark background.
+totalEmissiveRadiance += uRim.rgb * uRim.a * rim * sqrt(rim);
+totalEmissiveRadiance += diffuseColor.rgb * uFill;
 if (uDissolve > 0.0) {
   float dn2 = na_vnoise3(vBind * 18.0);
   totalEmissiveRadiance += vec3(1.0, 0.55, 0.15) * smoothstep(uDissolve + 0.08, uDissolve, dn2) * 4.0;
 }`,
       );
   };
-  m.customProgramCacheKey = () => 'palette-v1';
+  m.customProgramCacheKey = () => 'palette-v2';
   return m;
+}
+
+function rimVec(color: THREE.ColorRepresentation, strength: number): THREE.Vector4 {
+  const c = new THREE.Color(color);
+  return new THREE.Vector4(c.r, c.g, c.b, strength);
+}
+
+/** Set a palette material's rim light and fill after creation. */
+export function setPaletteLight(m: THREE.MeshStandardMaterial, rim: THREE.ColorRepresentation, rimStrength: number, fill: number): void {
+  const u = m.userData.uniforms as { uRim: { value: THREE.Vector4 }; uFill: { value: number } };
+  const c = new THREE.Color(rim);
+  u.uRim.value.set(c.r, c.g, c.b, rimStrength);
+  u.uFill.value = fill;
 }
 
 /** Clone a palette material with its own per-instance uniforms. */

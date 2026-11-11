@@ -1,5 +1,7 @@
 import { settings, type Settings } from '../core/settings';
-import { END_TEXT, NAMES, UI } from '../strings';
+import { NAMES, UI } from '../strings';
+import type { Difficulty } from '../core/settings';
+import { formatTime, type BestRun, type RunResult, type RunTotals } from '../game/RunStats';
 import type { Game } from '../game/Game';
 import { ACTIONS, GAMEPAD, KEYBOARD, actionLabels, type Action } from '../input/bindings';
 import type { QualityLevel } from '../config';
@@ -66,7 +68,7 @@ export class Menus {
     this.current = null;
   }
 
-  private build(name: string, cls: string, title: string | null, items: Item[], opts: { back?: () => void; header?: string; footer?: string; menuClass?: string } = {}): Screen {
+  private build(name: string, cls: string, title: string | null, items: Item[], opts: { back?: () => void; header?: string; footer?: string; menuClass?: string; bodyFirst?: boolean } = {}): Screen {
     const old = this.screens.get(name);
     old?.el.remove();
     const el = document.createElement('div');
@@ -75,6 +77,8 @@ export class Menus {
     const menu = document.createElement('div');
     menu.className = `menu interactive ${opts.menuClass ?? ''}`;
     if (title) menu.insertAdjacentHTML('beforeend', `<h2>${title}</h2>`);
+    // Text above the buttons (story pages, results) rather than below.
+    if (opts.footer && opts.bodyFirst) menu.insertAdjacentHTML('beforeend', opts.footer);
     const screen: Screen = { el, items, buttons: [], focus: 0, back: opts.back };
     items.forEach((it, i) => {
       const b = document.createElement('button');
@@ -92,7 +96,7 @@ export class Menus {
       menu.appendChild(b);
       screen.buttons.push(b);
     });
-    if (opts.footer) menu.insertAdjacentHTML('beforeend', opts.footer);
+    if (opts.footer && !opts.bodyFirst) menu.insertAdjacentHTML('beforeend', opts.footer);
     el.appendChild(menu);
     this.root.appendChild(el);
     this.screens.set(name, screen);
@@ -188,13 +192,29 @@ export class Menus {
 
   // ---- Screens ----
 
-  showTitle(onStart: () => void): void {
+  showTitle(opts: { continueLabel: string | null; onContinue: () => void; onNew: (d: Difficulty) => void }): void {
     const header = `<div class="logo"><div class="glyphs">◈ ✦ ◈</div><h1>${NAMES.game.toUpperCase()}</h1><div class="sub">${NAMES.subtitle}</div></div><div class="blurb">${UI.titleBlurb}</div>`;
-    const s = this.build('title', 'title-screen', null, [
-      { kind: 'button', label: UI.start, action: onStart },
+    const items: Item[] = [];
+    if (opts.continueLabel) items.push({ kind: 'button', label: `${UI.continueGame}<small>${opts.continueLabel}</small>`, action: opts.onContinue });
+    items.push(
+      { kind: 'button', label: UI.newGame, action: () => this.showDifficulty(opts.onNew, () => this.show(s), !!opts.continueLabel) },
       { kind: 'button', label: UI.settings, action: () => this.showSettings(() => this.show(s)) },
       { kind: 'button', label: UI.controls, action: () => this.showControls(() => this.show(s)) },
-    ], { header });
+    );
+    const s = this.build('title', 'title-screen', null, items, { header });
+    this.show(s);
+  }
+
+  /** New game: pick how hard it hits. */
+  showDifficulty(onPick: (d: Difficulty) => void, back: () => void, hasSave: boolean): void {
+    const row = (d: Difficulty, name: string, desc: string): Item => ({ kind: 'button', label: `${name}<small>${desc}</small>`, action: () => onPick(d) });
+    const s = this.build('difficulty', 'dim', UI.chooseDifficulty, [
+      row('story', UI.diffStory, UI.diffStoryDesc),
+      row('standard', UI.diffStandard, UI.diffStandardDesc),
+      row('veteran', UI.diffVeteran, UI.diffVeteranDesc),
+      { kind: 'button', label: UI.back, action: back },
+    ], { back, menuClass: 'wide', footer: hasSave ? `<div class="note">${UI.newGameWarn}</div>` : '' });
+    s.focus = 1;
     this.show(s);
   }
 
@@ -236,9 +256,11 @@ export class Menus {
       { kind: 'range', label: UI.masterVolume, key: 'masterVolume', min: 0, max: 1, step: 0.1, fmt: pct },
       { kind: 'range', label: UI.musicVolume, key: 'musicVolume', min: 0, max: 1, step: 0.1, fmt: pct },
       { kind: 'range', label: UI.sfxVolume, key: 'sfxVolume', min: 0, max: 1, step: 0.1, fmt: pct },
+      { kind: 'select', label: UI.difficulty, key: 'difficulty', options: [{ value: 'story', label: UI.diffStory }, { value: 'standard', label: UI.diffStandard }, { value: 'veteran', label: UI.diffVeteran }] },
       { kind: 'select', label: UI.quality, key: 'quality', options: q },
       { kind: 'select', label: UI.textSize, key: 'textSize', options: [{ value: 'small', label: UI.small }, { value: 'medium', label: UI.medium }, { value: 'large', label: UI.large }] },
       { kind: 'toggle', label: UI.aimAssist, key: 'aimAssist' },
+      { kind: 'range', label: UI.shake, key: 'shake', min: 0, max: 1, step: 0.25, fmt: pct },
       { kind: 'button', label: UI.back, action: back },
     ], { back });
     s.focus = 0;
@@ -260,11 +282,11 @@ export class Menus {
     this.show(s);
   }
 
-  showDeath(onRetry: () => void, onQuit: () => void): void {
-    const s = this.build('death', 'dim death-screen', UI.deathTitle, [
-      { kind: 'button', label: UI.retry, action: onRetry },
-      { kind: 'button', label: UI.quit, action: onQuit },
-    ], { footer: `<div class="note">${UI.deathBody}</div>` });
+  showDeath(onRetry: () => void, onQuit: () => void, easier: { label: string; action: () => void } | null = null): void {
+    const items: Item[] = [{ kind: 'button', label: UI.retry, action: onRetry }];
+    if (easier) items.push({ kind: 'button', label: easier.label, action: easier.action });
+    items.push({ kind: 'button', label: UI.quit, action: onQuit });
+    const s = this.build('death', 'dim death-screen', UI.deathTitle, items, { footer: `<div class="note">${UI.deathBody}</div>` });
     s.focus = 0;
     this.show(s);
   }
@@ -276,17 +298,45 @@ export class Menus {
     this.show(s);
   }
 
-  showEnd(onAgain: () => void): void {
-    const flags = this.game.director.flags as Set<string>;
-    const paras = END_TEXT.filter((p) => (!p.flag || flags.has(p.flag)) && (!p.not || !flags.has(p.not))).map((p) => `<p>${p.text}</p>`).join('');
-    const s = this.build('end', 'dim end-screen', UI.endTitle, [{ kind: 'button', label: UI.playAgain, action: onAgain }], {
-      header: '',
-      footer: `${paras}<div class="note">${UI.endCredits}</div>`,
-    });
-    // Put the text above the button.
-    const menu = s.el.querySelector('.menu')!;
-    const btn = s.buttons[0];
-    menu.appendChild(btn);
+  /** What became of everyone: a few lines per page, then on to the results. */
+  showEpilogue(paras: string[], onDone: () => void, page = 0): void {
+    const PER_PAGE = 3;
+    const pages = Math.max(1, Math.ceil(paras.length / PER_PAGE));
+    if (!paras.length) {
+      onDone();
+      return;
+    }
+    const body = paras.slice(page * PER_PAGE, (page + 1) * PER_PAGE).map((p) => `<p>${p}</p>`).join('');
+    const count = pages > 1 ? `<div class="pages">${page + 1} / ${pages}</div>` : '';
+    const next = (): void => {
+      if (page + 1 < pages) this.showEpilogue(paras, onDone, page + 1);
+      else onDone();
+    };
+    const s = this.build('end', 'end-screen', UI.afterwards, [{ kind: 'button', label: UI.next, action: next }], { bodyFirst: true, footer: `<div class="story">${body}</div>${count}` });
+    s.focus = 0;
+    this.show(s);
+  }
+
+  /** The run in numbers: rank, time, and what was found. */
+  showResults(r: { totals: RunTotals; result: RunResult; found: { logs: number; logsTotal: number; zones: number; zonesTotal: number }; difficulty: Difficulty; best: BestRun | null; improved: { bestTime: boolean; bestScore: boolean } }, onAgain: () => void): void {
+    const t = r.totals;
+    const diff = { story: UI.diffStory, standard: UI.diffStandard, veteran: UI.diffVeteran }[r.difficulty];
+    const tag = (on: boolean): string => (on ? ` <em>${UI.newBest}</em>` : '');
+    const bestTime = r.best && !r.improved.bestTime ? ` <small>${UI.bestTime.replace('{time}', formatTime(r.best.time))}</small>` : '';
+    const rows: [string, string][] = [
+      [UI.resultTime, `${formatTime(t.time)}${tag(r.improved.bestTime && !!r.best)}${bestTime}`],
+      [UI.resultAccuracy, `${Math.round(r.result.accuracy * 100)}%`],
+      [UI.resultKills, String(t.kills)],
+      [UI.resultCombos, String(t.combos)],
+      [UI.resultHeadshots, String(t.headshots)],
+      [UI.resultAmbushes, String(t.ambushes)],
+      [UI.resultDeaths, String(t.deaths)],
+      [UI.resultLogs, `${r.found.logs} / ${r.found.logsTotal}`],
+      [UI.resultZones, `${r.found.zones} / ${r.found.zonesTotal}`],
+    ];
+    const body = `<div class="results"><div class="rank-box"><div class="lbl">${UI.rank}</div><div class="rank r-${r.result.rank}">${r.result.rank}</div><div class="score">${UI.score.replace('{n}', String(r.result.score))}${tag(r.improved.bestScore && !!r.best)}</div><div class="diff">${diff}</div></div><div class="rows">${rows.map(([k, v]) => `<div class="r"><span>${k}</span><span class="v">${v}</span></div>`).join('')}</div></div><div class="note">${UI.endCredits}</div>`;
+    const s = this.build('end', 'end-screen', UI.endTitle, [{ kind: 'button', label: UI.playAgain, action: onAgain }], { bodyFirst: true, menuClass: 'wide', footer: body });
+    s.focus = 0;
     this.show(s);
   }
 }

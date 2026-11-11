@@ -4,7 +4,7 @@ import {
   type PaletteEntry,
 } from '../character/rigKit';
 
-export type EnemyKind = 'grunt' | 'trooper' | 'heavy';
+export type EnemyKind = 'grunt' | 'trooper' | 'heavy' | 'jackal' | 'ibis';
 
 /** Palette slots shared by all crew models. */
 export const PAL = {
@@ -16,6 +16,8 @@ interface Spec {
   bulk: number;
   armor: number;
   accent: number;
+  /** Edge light: each type has its own colour so roles read at a glance. */
+  rim: number;
   gunLength: number;
   gunBulk: number;
   pack: boolean;
@@ -23,23 +25,27 @@ interface Spec {
 }
 
 const SPECS: Record<EnemyKind, Spec> = {
-  grunt: { scale: 1.0, bulk: 1.0, armor: 0x1f6f63, accent: 0x9fe8d0, gunLength: 0.75, gunBulk: 1, pack: false, pauldrons: 1 },
-  trooper: { scale: 1.04, bulk: 1.15, armor: 0x2a4f7a, accent: 0x7fc8ff, gunLength: 0.55, gunBulk: 1.15, pack: true, pauldrons: 1.25 },
-  heavy: { scale: 1.3, bulk: 1.45, armor: 0x5b4a2e, accent: 0xffb060, gunLength: 1.0, gunBulk: 1.9, pack: true, pauldrons: 1.7 },
+  grunt: { scale: 1.0, bulk: 1.0, armor: 0x2fa890, accent: 0x9fe8d0, rim: 0x48f0c8, gunLength: 0.75, gunBulk: 1, pack: false, pauldrons: 1 },
+  trooper: { scale: 1.04, bulk: 1.15, armor: 0x3c78c8, accent: 0x7fc8ff, rim: 0x5aa8ff, gunLength: 0.55, gunBulk: 1.15, pack: true, pauldrons: 1.25 },
+  heavy: { scale: 1.3, bulk: 1.45, armor: 0xb07a30, accent: 0xffb060, rim: 0xff9a3a, gunLength: 1.0, gunBulk: 1.9, pack: true, pauldrons: 1.7 },
+  // Jackal: lean, crimson, no gun: a blade on each forearm and tall ears.
+  jackal: { scale: 0.98, bulk: 0.86, armor: 0xc8324a, accent: 0xff8a9a, rim: 0xff4468, gunLength: 0, gunBulk: 1, pack: false, pauldrons: 0.8 },
+  // Ibis: tall and thin in violet, a very long rifle and a curved beak.
+  ibis: { scale: 1.03, bulk: 0.9, armor: 0x8656d8, accent: 0xd8b0ff, rim: 0xb47aff, gunLength: 1.4, gunBulk: 0.8, pack: false, pauldrons: 0.9 },
 };
 
 function palette(spec: Spec): PaletteEntry[] {
   return [
-    { color: 0x24282e, roughness: 0.85, metalness: 0.05 },
-    { color: spec.armor, roughness: 0.45, metalness: 0.35 },
-    { color: 0x15181c, roughness: 0.5, metalness: 0.4 },
+    { color: 0x3b4652, roughness: 0.85, metalness: 0.05 },
+    { color: spec.armor, roughness: 0.45, metalness: 0.3 },
+    { color: 0x2a3138, roughness: 0.5, metalness: 0.35 },
     { color: 0xc9a24a, roughness: 0.3, metalness: 0.9 },
     { color: 0xffa020, roughness: 0.3, metalness: 0, emissive: 3.2 },
     { color: 0x4a3022, roughness: 0.7, metalness: 0 },
-    { color: 0x2b2e33, roughness: 0.4, metalness: 0.7 },
+    { color: 0x4a5058, roughness: 0.4, metalness: 0.6 },
     { color: 0xff3a20, roughness: 0.3, metalness: 0, emissive: 2.5 },
     { color: 0xff7a18, roughness: 0.2, metalness: 0, emissive: 5 },
-    { color: 0x111214, roughness: 0.8, metalness: 0.1 },
+    { color: 0x23272d, roughness: 0.8, metalness: 0.1 },
     { color: spec.accent, roughness: 0.3, metalness: 0.2, emissive: 1.2 },
   ];
 }
@@ -105,6 +111,19 @@ function buildKind(kind: EnemyKind): BuiltModel {
     rig.part('head', new THREE.ConeGeometry(0.018 * k, 0.04 * k, 4), PAL.armor, { pos: [0, 0.225 * k - i * 0.012 * k, 0.04 * k - i * 0.06 * k], rot: [-0.4 - i * 0.25, 0, 0] });
   }
 
+  if (kind === 'jackal') {
+    // Tall pointed ears: the silhouette you learn to run from.
+    for (const side of [-1, 1]) {
+      rig.part('head', new THREE.ConeGeometry(0.04 * k, 0.2 * k, 5), PAL.armor, { pos: [side * 0.075 * k, 0.29 * k, -0.02 * k], rot: [-0.12, 0, side * -0.2] });
+      rig.part('head', new THREE.ConeGeometry(0.018 * k, 0.12 * k, 4), PAL.accent, { pos: [side * 0.075 * k, 0.27 * k, 0.01 * k], rot: [-0.12, 0, side * -0.2] });
+    }
+  }
+  if (kind === 'ibis') {
+    // Long down-curved beak under the visor, and a crest behind the helm.
+    rig.part('head', new THREE.ConeGeometry(0.03 * k, 0.26 * k, 6), PAL.gold, { pos: [0, 0.02 * k, 0.3 * k], rot: [Math.PI / 2 + 0.45, 0, 0] });
+    rig.part('head', roundedBox(0.03 * k, 0.16 * k, 0.22 * k, 0.01), PAL.accent, { pos: [0, 0.2 * k, -0.12 * k], rot: [0.5, 0, 0] });
+  }
+
   // Arms.
   for (const side of [-1, 1] as const) {
     const n = side < 0 ? 'L' : 'R';
@@ -148,9 +167,23 @@ function buildKind(kind: EnemyKind): BuiltModel {
   // Weapon in the right hand, pointing forward (+Z).
   const gl = s.gunLength;
   const gb = s.gunBulk;
-  rig.part('handR', roundedBox(0.07 * k * gb, 0.11 * k * gb, gl * 0.55 * k, 0.015), PAL.gun, { pos: [0, -0.08 * k, gl * 0.18 * k] });
-  rig.part('handR', limb(0.022 * k * gb, 0.022 * k * gb, gl * 0.5 * k, 8), PAL.gun, { pos: [0, -0.06 * k, gl * 0.45 * k], rot: [-Math.PI / 2, 0, 0] });
-  rig.part('handR', roundedBox(0.03 * k, 0.03 * k, gl * 0.3 * k, 0.008), PAL.gunGlow, { pos: [0.04 * k * gb, -0.06 * k, gl * 0.2 * k] });
+  if (kind === 'jackal') {
+    // A hooked blade along each forearm, edge lit.
+    for (const n of ['L', 'R']) {
+      rig.part(`foreArm${n}`, roundedBox(0.02 * k, 0.5 * k, 0.09 * k, 0.008), PAL.gun, { pos: [0, -0.3 * k, 0.07 * k], rot: [0.12, 0, 0] });
+      rig.part(`foreArm${n}`, roundedBox(0.012 * k, 0.48 * k, 0.02 * k, 0.004), PAL.gunGlow, { pos: [0, -0.3 * k, 0.12 * k], rot: [0.12, 0, 0] });
+      rig.part(`foreArm${n}`, roundedBox(0.02 * k, 0.1 * k, 0.14 * k, 0.008), PAL.gun, { pos: [0, -0.56 * k, 0.11 * k], rot: [0.9, 0, 0] });
+    }
+  } else {
+    rig.part('handR', roundedBox(0.07 * k * gb, 0.11 * k * gb, gl * 0.55 * k, 0.015), PAL.gun, { pos: [0, -0.08 * k, gl * 0.18 * k] });
+    rig.part('handR', limb(0.022 * k * gb, 0.022 * k * gb, gl * 0.5 * k, 8), PAL.gun, { pos: [0, -0.06 * k, gl * 0.45 * k], rot: [-Math.PI / 2, 0, 0] });
+    rig.part('handR', roundedBox(0.03 * k, 0.03 * k, gl * 0.3 * k, 0.008), PAL.gunGlow, { pos: [0.04 * k * gb, -0.06 * k, gl * 0.2 * k] });
+  }
+  if (kind === 'ibis') {
+    // Scope on top of the long barrel.
+    rig.part('handR', limb(0.022 * k, 0.022 * k, 0.24 * k, 8), PAL.armorDark, { pos: [0, 0.01 * k, gl * 0.08 * k], rot: [-Math.PI / 2, 0, 0] });
+    rig.part('handR', ellipsoid(0.02 * k, 0.02 * k, 0.008 * k, 8, 6), PAL.gunGlow, { pos: [0, 0.01 * k, gl * 0.25 * k] });
+  }
   if (kind === 'heavy') {
     // Rotary barrels.
     for (let i = 0; i < 4; i++) {
@@ -158,15 +191,15 @@ function buildKind(kind: EnemyKind): BuiltModel {
       rig.part('handR', limb(0.016 * k, 0.016 * k, gl * 0.55 * k, 6), PAL.gun, { pos: [Math.cos(a) * 0.035 * k, -0.07 * k + Math.sin(a) * 0.035 * k, gl * 0.5 * k], rot: [-Math.PI / 2, 0, 0] });
     }
   }
-  const muzzleLocal = new THREE.Vector3(0, -0.06 * k, gl * 0.95 * k);
+  const muzzleLocal = new THREE.Vector3(0, -0.06 * k, Math.max(0.2, gl * 0.95) * k);
 
-  const material = paletteMaterial(palette(s));
+  const material = paletteMaterial(palette(s), { rim: s.rim, rimStrength: 0.55, fill: 0.16 });
   const built = rig.build(material);
   // Muzzle position relative to the right hand bone (bind pose).
   return { mesh: built.mesh, material, muzzleLocal, weakLocal };
 }
 
-export type PoseMode = 'normal' | 'stagger' | 'lifted' | 'dead' | 'flung' | 'stomp' | 'throw';
+export type PoseMode = 'normal' | 'stagger' | 'lifted' | 'dead' | 'flung' | 'stomp' | 'throw' | 'slash';
 
 export interface PoseParams {
   speed: number;
@@ -421,6 +454,20 @@ export class EnemyModel implements EnemyVisual {
       B.shinR.rotation.x = 1.2 * t;
       B.spine.rotation.x = 0.3 * t;
       B.upperArmL.rotation.z = -0.8 * t;
+    } else if (p.mode === 'slash') {
+      // Both blades drawn back over the shoulders, then brought down through the lunge.
+      const t = Math.min(1, p.modeT);
+      const rel = p.modeT > 1 ? Math.min(1, (p.modeT - 1) * 4) : 0;
+      for (const n of ['L', 'R']) {
+        B[`upperArm${n}`].rotation.x = THREE.MathUtils.lerp(-2.5 * t, -0.5, rel);
+        B[`upperArm${n}`].rotation.y = 0;
+        B[`upperArm${n}`].rotation.z = (n === 'L' ? -1 : 1) * THREE.MathUtils.lerp(0.5 * t, 0.15, rel);
+        B[`foreArm${n}`].rotation.x = THREE.MathUtils.lerp(-1.1 * t, -0.1, rel);
+        B[`foreArm${n}`].rotation.y = 0;
+      }
+      B.spine.rotation.x += THREE.MathUtils.lerp(-0.25 * t, 0.55, rel);
+      B.thighL.rotation.x += THREE.MathUtils.lerp(-0.2 * t, -0.9, rel);
+      B.shinL.rotation.x += THREE.MathUtils.lerp(0.4 * t, 0.9, rel);
     } else if (p.mode === 'throw') {
       // Free hand wound back over the shoulder, then whipped forward.
       const t = Math.min(1, p.modeT);

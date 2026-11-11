@@ -61,6 +61,16 @@ export class Npc {
     this.talked = true;
   }
 
+  get hasTalked(): boolean {
+    return this.talked;
+  }
+
+  /** Already left (a saved game where Yaw took the train). */
+  vanish(): void {
+    this.gone = true;
+    this.root.visible = false;
+  }
+
   reset(): void {
     if (this.leaving > 0 && !this.gone) this.leaving = 0;
   }

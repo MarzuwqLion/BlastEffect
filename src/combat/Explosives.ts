@@ -395,6 +395,7 @@ export class Explosives {
     game.input.rumble(Math.max(0.2, 1 - dist / 25), 0.35);
     game.time.hitStop(0.05);
     game.events.emit('explosion');
+    game.director.noise(center, 60);
   }
 
   /** A combo or another blast nearby sets cells off. */

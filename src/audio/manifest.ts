@@ -33,6 +33,7 @@ export const SOUNDS: Record<string, SoundEntry> = {
   gruntShot: { src: sfx(...range('gruntShot', 1, 3)), volume: 0.55, pitchVar: 0.06, voices: 8 },
   trooperShot: { src: sfx(...range('trooperShot', 1, 3)), volume: 0.55, pitchVar: 0.06, voices: 8 },
   heavyShot: { src: sfx('heavyShot4', 'heavyShot5'), volume: 0.5, pitchVar: 0.05, voices: 8 },
+  ibisShot: { src: sfx('rifleShot'), volume: 0.85, pitchVar: 0.03, voices: 3 },
   enemyCharge: { src: sfx('enemyCharge'), volume: 0.5, pitchVar: 0.05, voices: 4 },
   heavyWindup: { src: sfx('heavyWindup'), volume: 0.7, voices: 2 },
   impact: { src: sfx(...range('impact', 0, 4)), volume: 0.5, pitchVar: 0.12, voices: 6 },
@@ -78,6 +79,8 @@ export const SOUNDS: Record<string, SoundEntry> = {
   deathHeavy: { src: sfx('deathHeavy'), volume: 0.8, voices: 2 },
   stomp: { src: sfx('stomp'), volume: 0.9, voices: 2 },
   whizz: { src: sfx('whizz'), volume: 0.6, pitchVar: 0.2, voices: 3, bus: 'ui' },
+  /** An unaware enemy has just noticed her (synthesized). */
+  alert: { volume: 0.5, voices: 2, bus: 'ui' },
   // Boss.
   bossRoar: { volume: 1, voices: 1 },
   bossSlam: { src: sfx('bossSlam'), volume: 1, voices: 2 },
@@ -86,6 +89,8 @@ export const SOUNDS: Record<string, SoundEntry> = {
   bossOrb: { src: sfx('bossOrb'), volume: 0.6, voices: 3 },
   bossDrag: { src: sfx('bossDrag'), volume: 0.8, voices: 1 },
   phaseChange: { src: sfx('phaseChange'), volume: 0.9, voices: 1 },
+  /** The last train braking into Reach Station (the opening). */
+  trainArrive: { volume: 0.7, voices: 1 },
   // World and UI.
   doorOpen: { src: sfx('doorOpen'), volume: 0.7, voices: 2 },
   pickupAmmo: { src: sfx('pickupAmmo'), volume: 0.65, voices: 1, bus: 'ui' },
@@ -97,9 +102,38 @@ export const SOUNDS: Record<string, SoundEntry> = {
   uiBack: { src: sfx('uiBack'), volume: 0.45, voices: 2, bus: 'ui' },
   uiDeny: { src: sfx('uiDeny'), volume: 0.4, voices: 2, bus: 'ui' },
   typeBlip: { src: sfx('typeBlip'), volume: 0.18, pitchVar: 0.1, voices: 2, bus: 'ui' },
+  // Speaker voices: synthesized vowels, pitched per character (see VOICES).
+  voiceA: { volume: 0.34, pitchVar: 0.05, voices: 2, bus: 'ui' },
+  voiceE: { volume: 0.34, pitchVar: 0.05, voices: 2, bus: 'ui' },
+  voiceO: { volume: 0.34, pitchVar: 0.05, voices: 2, bus: 'ui' },
   checkpoint: { src: sfx('checkpoint'), volume: 0.6, voices: 1, bus: 'ui' },
   objective: { src: sfx('objective'), volume: 0.55, voices: 1, bus: 'ui' },
 };
+
+/** Playback rate of the voice vowels for each speaker (1 = Imani's alto; lower is deeper). */
+export const VOICES: Record<string, number> = {
+  imani: 1,
+  odette: 0.9,
+  yaw: 0.7,
+  croc: 0.46,
+  bas: 0.6,
+  nef: 1.08,
+  kwame: 0.76,
+  merit: 1.17,
+  mari: 1.1,
+};
+
+const VOWELS = ['voiceA', 'voiceE', 'voiceO'];
+
+/** Which vowel a character of text sounds like (spaces and punctuation: none). */
+export function voiceFor(ch: string): string | null {
+  const c = ch.toLowerCase();
+  if (c < 'a' || c > 'z') return null;
+  if (c === 'a') return VOWELS[0];
+  if (c === 'e' || c === 'i' || c === 'y') return VOWELS[1];
+  if (c === 'o' || c === 'u') return VOWELS[2];
+  return VOWELS[c.charCodeAt(0) % 3];
+}
 
 export interface MusicEntry {
   src?: string;
