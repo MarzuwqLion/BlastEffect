@@ -193,6 +193,7 @@ do, the workflow's build job still passes but the deploy job fails with
   | `flags=a,b` | Preset dialogue flags, e.g. `flags=intel_weakpoint` marks the boss weak point |
   | `manual=1` | Don't run the frame loop; the game steps only when told (automation) |
   | `save=1` | Keep a saved game even on a debug start |
+  | `msaa=0` | High quality without multisampling (edges are smoothed in the finishing pass instead) |
 
   A start with `section`, `autostart` or `flags` never reads or writes the
   saved game, so debugging can't overwrite a real run.
@@ -207,14 +208,31 @@ do, the workflow's build job still passes but the deploy job fails with
   `PAD=1` drives it through a simulated gamepad and skips the opening by
   holding A), `save` (new game, play, reload, Continue, compare), `crew`
   (posted crews notice and react, the ambush bonus, Jackal and Ibis
-  attacks land on a still target and miss a moving one), `boss`, `combat`
-  (time to kill and combos per enemy type),
+  attacks land on a still target and miss a moving one), `high` (the
+  High preset in every section and switched to mid-game: no pixel that
+  is not a finite number, and a deliberately poisoned frame survives),
+  `boss`, `combat` (time to kill and combos per enemy type),
   `movement`, `camera`, `cover`, `gamepad`, `dialogue`, `title`,
   `closeup`, `anims`, `fight`, `tour`.
 - **Console:** `window.__game` exposes the running game (for example
   `__game.player.teleport({x:0,y:9,z:-290})` or `__game.simulate(2)`).
 
 ## If the screen goes black
+
+Black blocks or a black picture on **High** (with the HUD still there)
+was a bug, fixed here. High is the only preset that multisamples, and
+multisampling shades the pixels along an edge slightly outside the shape.
+A few effect shaders (the neon reflections on the street first of all)
+then raised a small negative number to a power, which is "not a number"
+on most graphics cards. The picture is high-dynamic-range with bloom, and
+the bloom's blur spreads one such pixel into a black block, or the whole
+frame. Those shaders now clamp their inputs, and a pass in front of the
+bloom (`src/render/SanitizePass.ts`) replaces any pixel that is not a
+finite, sane brightness, so a bad pixel from any source stays one pixel.
+`tests/shaders.test.ts` checks the shader source for the same mistake.
+If High still misbehaves on your machine, add `?msaa=0` to the URL: that
+runs High without multisampling, and whether it helps says where the
+remaining problem is.
 
 The quality setting is saved in the browser. If a preset is too much for
 your GPU, the game steps post-processing down by itself; if the GPU drops
@@ -300,7 +318,8 @@ src/
   enemies/                crew AI, models, bolts, the Crocodile boss
   combat/                 damage layers, combos, feedback, ka cells and grenades
   level/                  level builder, materials, kit, nav grid, cover, sections (zones.ts: the optional areas)
-  render/                 shader chunks, dome and sea life, the leviathan, light pool, finishing pass
+  render/                 shader chunks, dome and sea life, the leviathan, light pool,
+                          the sanitize and finishing passes
   fx/, audio/, ui/        effects, synthesized audio, HUD/menus/dialogue
   dialogue/               dialogue types and validator
   game/                   game state machine, level director (encounters, checkpoints, saves),

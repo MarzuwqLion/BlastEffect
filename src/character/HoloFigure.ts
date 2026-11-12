@@ -34,7 +34,7 @@ function holoMaterial(color: number): THREE.MeshBasicMaterial {
       .replace('#include <common>', '#include <common>\nuniform float uTime;\nvarying vec3 vHoloN;\nvarying vec3 vHoloV;\nvarying float vHoloY;')
       .replace(
         '#include <opaque_fragment>',
-        `float holoFres = pow(1.0 - abs(dot(normalize(vHoloN), normalize(vHoloV))), 1.5);
+        `float holoFres = pow(max(1.0 - abs(dot(normalize(vHoloN), normalize(vHoloV))), 0.0), 1.5);
         float holoScan = 0.62 + 0.38 * sin(vHoloY * 150.0 - uTime * 5.0);
         float holoBand = smoothstep(0.93, 1.0, sin(vHoloY * 2.6 - uTime * 1.9));
         float holoFlick = 0.9 + 0.1 * sin(uTime * 31.0) * sin(uTime * 7.3);

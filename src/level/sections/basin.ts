@@ -47,7 +47,7 @@ function floodMaterial(): THREE.ShaderMaterial {
         float e = 0.06;
         vec3 n = normalize(vec3((h - ripple(p + vec2(e, 0.0))) * 1.1, 1.0, (h - ripple(p + vec2(0.0, e))) * 1.1));
         vec3 v = normalize(cameraPosition - vWorld);
-        float fres = pow(1.0 - max(dot(n, v), 0.0), 3.0);
+        float fres = pow(clamp(1.0 - dot(n, v), 0.0, 1.0), 3.0);
         vec3 col = mix(vec3(0.008, 0.05, 0.075), vec3(0.05, 0.27, 0.34), fres);
         vec3 r = reflect(-v, n);
         // The sconces' fire and the dome's light, caught on the ripples.
@@ -56,7 +56,7 @@ function floodMaterial(): THREE.ShaderMaterial {
         col += vec3(0.45, 0.92, 1.0) * pow(max(dot(r, normalize(vec3(0.0, 0.9, 0.1))), 0.0), 26.0) * 0.5;
         // Light from under the old pool.
         float d = length(p - uCenter);
-        col += vec3(0.08, 0.5, 0.6) * (0.6 + 0.4 * h) * smoothstep(10.0, 1.0, d) * 0.4;
+        col += vec3(0.08, 0.5, 0.6) * (0.6 + 0.4 * h) * (1.0 - smoothstep(1.0, 10.0, d)) * 0.4;
         gl_FragColor = vec4(col, uAlpha * (0.74 + fres * 0.24));
         #include <tonemapping_fragment>
         #include <colorspace_fragment>

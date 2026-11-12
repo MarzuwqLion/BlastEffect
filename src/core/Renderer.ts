@@ -5,9 +5,10 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { CONFIG, type QualityConfig, type QualityLevel } from '../config';
 import { FinishPass } from '../render/FinishPass';
+import { SanitizePass } from '../render/SanitizePass';
 
 /**
- * WebGL renderer plus the post chain (bloom, output, finishing pass).
+ * WebGL renderer plus the post chain (sanitize, bloom, output, finishing pass).
  * Quality presets change pixel ratio, shadows, bloom and MSAA at runtime.
  */
 export class Renderer {
@@ -61,6 +62,9 @@ export class Renderer {
       for (const l of this.lostListeners) l();
     });
     window.addEventListener('resize', () => this.resize());
+    // ?msaa=0: High without multisampling (edges smoothed in the finishing pass instead). A way to
+    // tell a multisampling problem on one GPU from anything else.
+    if (new URLSearchParams(location.search).get('msaa') === '0') this.postFallback = 1;
     this.applyQuality();
     this.resize();
   }
@@ -117,6 +121,8 @@ export class Renderer {
       this.composer = new EffectComposer(this.renderer, rt);
       this.renderPass = new RenderPass(this.scene, this.camera);
       this.composer.addPass(this.renderPass);
+      // Nothing that is not a finite, sane brightness reaches the bloom (it would spread it across the screen).
+      this.composer.addPass(new SanitizePass());
       this.bloom = new UnrealBloomPass(new THREE.Vector2(this.width, this.height), q.bloomStrength, 0.32, 1.0);
       this.composer.addPass(this.bloom);
       this.composer.addPass(new OutputPass());

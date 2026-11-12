@@ -247,9 +247,10 @@ export class Enemy {
         uniform float uTime; uniform float uHit; uniform float uAlpha;
         varying vec3 vN; varying vec3 vV; varying vec3 vP;
         void main() {
-          float f = pow(1.0 - abs(dot(vN, vV)), 2.5);
-          // Hex-ish shimmer bands.
-          float bands = 0.5 + 0.5 * sin(vP.y * 28.0 + uTime * 3.0) * sin(atan(vP.z, vP.x) * 10.0 + uTime);
+          float f = pow(max(1.0 - abs(dot(vN, vV)), 0.0), 2.5);
+          // Hex-ish shimmer bands (atan is undefined at the poles, where x and z are both zero).
+          float ang = abs(vP.x) + abs(vP.z) > 1e-5 ? atan(vP.z, vP.x) : 0.0;
+          float bands = 0.5 + 0.5 * sin(vP.y * 28.0 + uTime * 3.0) * sin(ang * 10.0 + uTime);
           float a = (f * 0.55 + bands * 0.05 + uHit * 0.35) * uAlpha;
           gl_FragColor = vec4(vec3(0.3, 0.7, 1.0) * (1.0 + uHit * 2.0), a);
         }`,

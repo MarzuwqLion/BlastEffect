@@ -49,7 +49,7 @@ function lightBeams(b: LevelBuilder, positions: [number, number, number, string]
       side: THREE.DoubleSide,
       uniforms: { uColor: { value: new THREE.Vector3(c.r, c.g, c.b) } },
       vertexShader: /* glsl */ `varying float vY; varying vec3 vN; varying vec3 vV; void main(){ vY = position.y; vec4 mv = modelViewMatrix * vec4(position,1.0); vN = normalize(normalMatrix*normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`,
-      fragmentShader: /* glsl */ `uniform vec3 uColor; varying float vY; varying vec3 vN; varying vec3 vV; void main(){ float f = abs(dot(vN, vV)); float a = (1.0 + vY / 9.0) * 0.08 * f; gl_FragColor = vec4(uColor * a, 1.0); }`,
+      fragmentShader: /* glsl */ `uniform vec3 uColor; varying float vY; varying vec3 vN; varying vec3 vV; void main(){ float f = abs(dot(vN, vV)); float a = max(1.0 + vY / 9.0, 0.0) * 0.08 * f; gl_FragColor = vec4(uColor * a, 1.0); }`,
     });
     const cone = new THREE.Mesh(geo, mat);
     cone.position.set(x, y, z);

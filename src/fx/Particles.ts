@@ -68,7 +68,7 @@ export class ParticleSystem {
         void main() {
           vec2 c = gl_PointCoord - 0.5;
           float d = length(c) * 2.0;
-          float a = smoothstep(1.0, 0.0, d);
+          float a = 1.0 - smoothstep(0.0, 1.0, d);
           a *= a;
           gl_FragColor = vec4(vColor, a * vAlpha);
         }`,

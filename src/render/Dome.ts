@@ -34,7 +34,8 @@ export class Dome {
         void main() {
           vec3 d = normalize(vDir);
           float elev = asin(clamp(d.y, -1.0, 1.0));
-          float az = atan(d.z, d.x);
+          // Straight up, x and z are both zero and atan is undefined there.
+          float az = abs(d.x) + abs(d.z) > 1e-5 ? atan(d.z, d.x) : 0.0;
           float h = clamp(d.y, 0.0, 1.0);
           // Water colour: lighter toward the surface far above.
           vec3 deep = vec3(0.002, 0.008, 0.016);
@@ -44,7 +45,7 @@ export class Dome {
           col = mix(col, top, smoothstep(0.55, 1.0, h));
           // Light shafts from above, drifting.
           float rays = na_vnoise(vec2(az * 9.0 + uTime * 0.03, 0.0)) * na_vnoise(vec2(az * 23.0 - uTime * 0.05, 3.0));
-          rays = pow(rays, 2.0) * smoothstep(0.15, 0.9, h);
+          rays = rays * rays * smoothstep(0.15, 0.9, h);
           col += vec3(0.04, 0.14, 0.15) * rays * 0.8;
           // Caustic shimmer on the glass.
           vec2 cuv = vec2(az * 6.0, elev * 8.0);
@@ -60,9 +61,6 @@ export class Dome {
           float frame = smoothstep(0.47, 0.5, hexd) * smoothstep(0.0, 0.25, h);
           col = mix(col, vec3(0.006, 0.01, 0.014), frame * 0.7);
           col += vec3(0.5, 0.36, 0.12) * frame * 0.015;
-          // Lit nodes at frame joints.
-          float node = smoothstep(0.08, 0.0, length(gh) - 0.0) * 0.0;
-          col += vec3(0.2, 0.9, 1.0) * node;
           // Below the horizon fades to black (the city floor).
           col *= smoothstep(-0.25, 0.05, d.y);
           gl_FragColor = vec4(col, 1.0);

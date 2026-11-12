@@ -1,6 +1,6 @@
 // Headless screenshots and scripted checks. Usage:
 //   node scripts/shots.mjs [scenario ...]
-// Scenarios: sections, boot, playthrough (PAD=1 for the gamepad), save, crew, boss, and the older
+// Scenarios: sections, boot, playthrough (PAD=1 for the gamepad), save, crew, high, boss, and the older
 // per-milestone checks (tour, dialogue, title, anims, closeup, fight, combat, gamepad, movement, camera, cover).
 import { chromium } from 'playwright';
 import fs from 'node:fs';
@@ -1373,6 +1373,69 @@ const run = {
     if (out.ibisStill.taken < 30) errors.push(`[crew] an Ibis should hit someone standing still: ${JSON.stringify(out.ibisStill)}`);
     if (out.ibisStrafe.taken >= out.ibisStill.taken) errors.push(`[crew] strafing should avoid Ibis shots: ${JSON.stringify(out.ibisStrafe)} vs ${JSON.stringify(out.ibisStill)}`);
     await page.close();
+  },
+
+  // The High preset (multisampled, high-dynamic-range picture with bloom): every pixel must be a
+  // finite number in every section, after switching to it mid-game, and even when a shader misbehaves.
+  async high() {
+    // Page-side: count pixels that are NaN or infinite in a half-float target.
+    const SCAN = () => {
+      const g = window.__game; const R = g.renderer.renderer; const comp = g.renderer.composer;
+      const size = R.getDrawingBufferSize(new (g.rig.camera.position.constructor)()); const w = Math.floor(size.x); const h = Math.floor(size.y);
+      const bad = (rt) => { const buf = new Uint16Array(w * h * 4); R.readRenderTargetPixels(rt, 0, 0, w, h, buf); let n = 0; for (let i = 0; i < buf.length; i += 4) if ((((buf[i] >> 10) & 31) === 31) || (((buf[i + 1] >> 10) & 31) === 31) || (((buf[i + 2] >> 10) & 31) === 31)) n++; return n; };
+      window.__scan = () => {
+        g.simulate(0.3);
+        // The scene as drawn, before anything cleans it.
+        const RT = comp.renderTarget1.constructor;
+        const rt = new RT(w, h, { type: comp.renderTarget1.texture.type, samples: comp.renderTarget1.samples });
+        R.setRenderTarget(rt); R.clear(); R.render(g.scene, g.rig.camera); R.setRenderTarget(null);
+        const scene = bad(rt); rt.dispose();
+        g.simulate(0.1);
+        // What reaches the screen: mean brightness of the canvas, 0..255.
+        const c = document.createElement('canvas'); c.width = 160; c.height = 90; const x = c.getContext('2d'); x.drawImage(R.domElement, 0, 0, 160, 90);
+        const px = x.getImageData(0, 0, 160, 90).data; let sum = 0; for (let i = 0; i < px.length; i += 4) sum += px[i] + px[i + 1] + px[i + 2];
+        return { quality: g.renderer.quality, samples: comp.renderTarget1.samples, passes: comp.passes.map((p) => p.constructor.name).join('>'), scene, composer: bad(comp.renderTarget1) + bad(comp.renderTarget2), brightness: +(sum / (px.length / 4) / 3).toFixed(1) };
+      };
+    };
+    for (const sec of [1, 2, 3, 4, 5]) {
+      const page = await open(`section=${sec}&autostart=1&manual=1&god=1&quality=high`);
+      await page.evaluate(SCAN);
+      const r = await page.evaluate(() => window.__scan());
+      console.log(`high: section ${sec}`, JSON.stringify(r));
+      if (r.samples !== 4) errors.push(`[high] section ${sec} is not multisampled: ${JSON.stringify(r)}`);
+      if (r.scene || r.composer) errors.push(`[high] section ${sec} has pixels that are not finite numbers: ${JSON.stringify(r)}`);
+      if (r.brightness < 4) errors.push(`[high] section ${sec} renders black: ${JSON.stringify(r)}`);
+      await page.close();
+    }
+    // Switched to in the middle of a game, as from the settings menu.
+    {
+      const page = await open('section=2&autostart=1&manual=1&god=1&quality=medium');
+      await page.evaluate(SCAN);
+      const before = await page.evaluate(() => window.__scan());
+      await page.evaluate(() => window.__game.applyQuality('high'));
+      await page.evaluate(SCAN);
+      const after = await page.evaluate(() => window.__scan());
+      console.log('high: switched from medium', JSON.stringify(before), '->', JSON.stringify(after));
+      if (after.quality !== 'high' || after.samples !== 4 || after.scene || after.composer || after.brightness < before.brightness * 0.6) errors.push(`[high] switching from medium broke the picture: ${JSON.stringify(after)}`);
+      await page.close();
+    }
+    // A shader that writes "not a number" over every neon reflection on the street: the scene has
+    // bad pixels, the bloom must not spread them, and the picture must survive.
+    {
+      const page = await open('section=2&autostart=1&manual=1&god=1&quality=high');
+      await page.evaluate(SCAN);
+      const clean = await page.evaluate(() => window.__scan());
+      const poisoned = await page.evaluate(() => {
+        const g = window.__game; let n = 0;
+        g.scene.traverse((o) => { const m = o.material; if (m && m.isShaderMaterial && m.fragmentShader.includes('gl_FragColor = vec4(uColor * a, 1.0);') && m.fragmentShader.includes('ripple')) { m.fragmentShader = m.fragmentShader.replace('gl_FragColor = vec4(uColor * a, 1.0);', 'gl_FragColor = vec4(vec3(uZero / uZero), 1.0);').replace('uniform float uTime;', 'uniform float uTime; uniform float uZero;'); m.uniforms.uZero = { value: 0 }; m.needsUpdate = true; n++; } });
+        return { materials: n, ...window.__scan() };
+      });
+      console.log('high: poisoned', JSON.stringify(poisoned), 'clean', JSON.stringify(clean));
+      if (!poisoned.materials || !poisoned.scene) errors.push(`[high] the poison test did not poison anything: ${JSON.stringify(poisoned)}`);
+      if (poisoned.composer) errors.push(`[high] bad pixels got past the sanitize pass: ${JSON.stringify(poisoned)}`);
+      if (poisoned.brightness < clean.brightness * 0.6) errors.push(`[high] bad pixels blacked out the picture: ${JSON.stringify(poisoned)} vs ${JSON.stringify(clean)}`);
+      await page.close();
+    }
   },
 
   async sections() {

@@ -71,7 +71,7 @@ function seaView(b: LevelBuilder, game: Game): void {
           float h = clamp((vW.y + 16.0) / 60.0, 0.0, 1.0);
           vec3 deep = vec3(0.012, 0.05, 0.07);
           vec3 high = vec3(0.07, 0.30, 0.38);
-          vec3 col = mix(deep, high, pow(h, 1.4));
+          vec3 col = mix(deep, high, pow(max(h, 0.0), 1.4));
           float s = vW.z * 0.09 + vW.y * 0.035;
           float rays = pow(max(0.0, sin(s + uTime * 0.13)), 10.0) * 0.7 + pow(max(0.0, sin(s * 1.7 - uTime * 0.09 + 1.3)), 14.0) * 0.5;
           col += vec3(0.10, 0.32, 0.36) * rays * smoothstep(0.1, 0.9, h);

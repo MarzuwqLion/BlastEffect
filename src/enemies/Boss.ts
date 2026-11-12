@@ -149,7 +149,7 @@ export class Crocodile extends Enemy {
       { uColor: { value: new THREE.Color(KA_GREEN) }, uAlpha: { value: 1 } },
       UV_VERT,
       /* glsl */ `varying vec2 vUv; uniform vec3 uColor; uniform float uAlpha;
-        void main(){ float a = pow(1.0 - vUv.y, 2.0) * uAlpha * 0.55; gl_FragColor = vec4(uColor * 1.4, a); }`,
+        void main(){ float a = pow(max(1.0 - vUv.y, 0.0), 2.0) * uAlpha * 0.55; gl_FragColor = vec4(uColor * 1.4, a); }`,
     );
     this.ringMesh = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.9, 72, 1, true).translate(0, 0.45, 0), ringMat);
     this.ringMesh.visible = false;
@@ -178,7 +178,7 @@ export class Crocodile extends Enemy {
         void main(){ vP = position; vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`,
       /* glsl */ `varying vec3 vN; varying vec3 vV; varying vec3 vP; uniform float uTime; uniform float uHit;
         void main(){
-          float f = pow(1.0 - abs(dot(vN, vV)), 2.2);
+          float f = pow(max(1.0 - abs(dot(vN, vV)), 0.0), 2.2);
           float glyph = step(0.92, fract(vP.y * 6.0 - uTime * 0.6)) * 0.25;
           gl_FragColor = vec4(vec3(0.25, 1.0, 0.6) * (0.8 + uHit * 1.5), f * 0.45 + glyph * f + uHit * 0.2);
         }`,

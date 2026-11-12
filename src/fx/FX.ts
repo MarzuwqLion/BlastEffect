@@ -167,9 +167,9 @@ export class FX {
         varying float vFade; varying vec2 vUv;
         void main() {
           float d = length(vUv - 0.5) * 2.0;
-          float a = smoothstep(1.0, 0.25, d) * 0.85 * vFade;
+          float a = (1.0 - smoothstep(0.25, 1.0, d)) * 0.85 * vFade;
           vec3 col = mix(vec3(0.02), vec3(0.15, 0.1, 0.06), d);
-          float ember = smoothstep(0.3, 0.0, d) * vFade * vFade;
+          float ember = (1.0 - smoothstep(0.0, 0.3, d)) * vFade * vFade;
           gl_FragColor = vec4(col + vec3(1.0, 0.45, 0.1) * ember * 0.8, a);
         }`,
     });
@@ -247,7 +247,7 @@ export class FX {
         fragmentShader: /* glsl */ `
           varying vec3 vN; varying vec3 vV; uniform float uAlpha; uniform vec3 uColor;
           void main(){
-            float f = pow(1.0 - abs(dot(vN, vV)), 3.0);
+            float f = pow(max(1.0 - abs(dot(vN, vV)), 0.0), 3.0);
             gl_FragColor = vec4(uColor * 2.5, f * uAlpha);
           }`,
       });

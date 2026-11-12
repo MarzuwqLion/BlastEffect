@@ -231,6 +231,28 @@ Status legend: `[x]` done, `[ ]` not yet, `[~]` partially done (see note).
     with no console errors. Difficulty was set from bot runs without god
     mode (table in `docs/REVIEW.md`); it has not been played by a person.
 
+- Black blocks on the High preset (reported from the first play test on,
+  and not fixed by the earlier render-target fallbacks). Cause: High is
+  the only preset with MSAA; MSAA shades edge pixels at a pixel centre
+  that can lie outside the triangle, so `1.0 - abs(uv.x - 0.5) * 2.0` on
+  the neon reflection cards goes slightly negative there, and `pow()` of
+  a negative base is undefined: NaN on D3D and Metal. One NaN pixel in
+  the half-float scene buffer is spread by the bloom's blur pyramid into
+  black blocks, up to the whole frame. The software renderer used by the
+  scripted runs returns a finite number for that `pow`, which is why no
+  run ever showed it. Measured here: 16 such fragments in one ordinary
+  strip view with MSAA, none without; writing NaN from the cards turned
+  all 921,600 pixels of a composer buffer to NaN and the picture black.
+  Fix: every custom shader clamps what it feeds to `pow` (and no longer
+  relies on reversed `smoothstep` edges, `atan(0, 0)` or a bare
+  `normalize` of an interpolated normal); `render/SanitizePass.ts` sits
+  between the scene and the bloom and replaces NaN, infinity, negatives
+  and anything above 64; `tests/shaders.test.ts` reads the shader source
+  for these mistakes (75 tests); the `high` scenario checks every
+  section on High, a Medium to High switch, and that a frame poisoned
+  with 1,333 NaN pixels reaches the screen intact. Not confirmed on the
+  reporter's GPU at the time of writing.
+
 ## Done checklist (from the brief)
 
 - [x] Completable start to finish with keyboard/mouse and with gamepad

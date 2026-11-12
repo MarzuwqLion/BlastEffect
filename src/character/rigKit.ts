@@ -159,7 +159,7 @@ diffuseColor.a *= uOpacity;`,
         '#include <emissivemap_fragment>',
         `#include <emissivemap_fragment>
 totalEmissiveRadiance += palColor * palProps.z;
-float rim = pow(1.0 - abs(dot(normalize(vPalViewN), vec3(0.0, 0.0, 1.0))), 2.0);
+float rim = pow(max(1.0 - abs(dot(normalize(vPalViewN), vec3(0.0, 0.0, 1.0))), 0.0), 2.0);
 // Hit flash: mostly on the silhouette, so the target keeps its shape under bloom.
 totalEmissiveRadiance += uFlash.rgb * uFlash.a * (0.2 + rim * 1.5);
 totalEmissiveRadiance += uGlow.rgb * uGlow.a * (0.1 + rim * 1.5);

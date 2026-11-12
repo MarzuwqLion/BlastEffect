@@ -261,10 +261,12 @@ function reflectionMaterial(color: string): THREE.ShaderMaterial {
     fragmentShader: /* glsl */ `
       varying vec2 vUv; varying vec3 vW; uniform vec3 uColor; uniform float uTime;
       void main(){
-        float across = 1.0 - abs(vUv.x - 0.5) * 2.0;
-        float along = 1.0 - vUv.y;
+        // Clamped: with multisampling, edge pixels are shaded just outside the card, where these go
+        // negative, and a negative number raised to a power is "not a number" on most GPUs.
+        float across = max(1.0 - abs(vUv.x - 0.5) * 2.0, 0.0);
+        float along = max(1.0 - vUv.y, 0.0);
         float ripple = 0.75 + 0.25 * sin(vW.x * 7.0 + vW.z * 3.0 + uTime * 1.5) * sin(vW.z * 5.0 - uTime);
-        float a = pow(across, 1.5) * along * along * ripple * 0.32;
+        float a = pow(max(across, 0.0), 1.5) * along * along * ripple * 0.32;
         gl_FragColor = vec4(uColor * a, 1.0);
       }`,
   });

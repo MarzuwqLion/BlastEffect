@@ -95,10 +95,15 @@ uniform float uTexScale;
 uniform float uCausticAmount;
 ${HASH_GLSL}
 ${CAUSTICS_GLSL}
+// Never divides by zero, whatever the interpolated normal is.
+vec3 naSafeNormal() {
+  return vNaWorldNormal * inversesqrt(max(dot(vNaWorldNormal, vNaWorldNormal), 1e-8));
+}
 vec4 naTriplanar(sampler2D tex) {
-  vec3 bw = abs(normalize(vNaWorldNormal));
-  bw = pow(bw, vec3(4.0));
-  bw /= (bw.x + bw.y + bw.z);
+  vec3 bw = abs(naSafeNormal());
+  bw *= bw;
+  bw *= bw;
+  bw /= max(bw.x + bw.y + bw.z, 1e-5);
   vec4 x = texture2D(tex, vNaWorldPos.zy * uTexScale);
   vec4 y = texture2D(tex, vNaWorldPos.xz * uTexScale);
   vec4 z = texture2D(tex, vNaWorldPos.xy * uTexScale);
@@ -134,7 +139,7 @@ vec4 naTriplanar(sampler2D tex) {
       '#include <emissivemap_fragment>',
       `#include <emissivemap_fragment>
 if (uCaustics > 0.5 && uCausticAmount > 0.0) {
-  float naUp = smoothstep(0.2, 0.9, normalize(vNaWorldNormal).y);
+  float naUp = smoothstep(0.2, 0.9, naSafeNormal().y);
   float naSide = (1.0 - naUp) * 0.35;
   vec2 naP = vNaWorldPos.xz * 0.32 + vec2(vNaWorldPos.y * 0.15);
   float naC = na_caustics(naP, uTime * 0.6);
